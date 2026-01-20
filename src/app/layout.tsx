@@ -4,6 +4,7 @@ import { type Metadata } from "next";
 import { Inter } from "next/font/google";
 
 import { TRPCReactProvider } from "@/trpc/react";
+import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
   title: "Carely",
@@ -20,9 +21,17 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${inter.variable}`}>
+    <html lang="en" className={`${inter.variable}`} suppressHydrationWarning>
       <body>
-        <TRPCReactProvider>{children}</TRPCReactProvider>
+        <TRPCReactProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            disableTransitionOnChange
+          >
+            {children}
+          </ThemeProvider>
+        </TRPCReactProvider>
       </body>
     </html>
   );
