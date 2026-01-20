@@ -2,9 +2,7 @@ import { relations } from "drizzle-orm";
 import {
   boolean,
   index,
-  pgTable,
   pgTableCreator,
-  serial,
   text,
   timestamp,
   varchar,
@@ -36,7 +34,12 @@ export const posts = createTable(
   ]
 );
 
-export const user = pgTable("user", {
+
+
+
+
+
+export const user = createTable("user", {
   id: varchar("id", { length: 36 }).primaryKey(),
   name: text("name").notNull(),
   email: varchar("email", { length: 255 }).notNull().unique(),
@@ -52,7 +55,7 @@ export const user = pgTable("user", {
     .notNull(),
 });
 
-export const session = pgTable("session", {
+export const session = createTable("session", {
   id: varchar("id", { length: 36 }).primaryKey(),
   expiresAt: timestamp("expires_at").notNull(),
   token: varchar("token", { length: 255 }).notNull().unique(),
@@ -65,7 +68,7 @@ export const session = pgTable("session", {
     .references(() => user.id, { onDelete: "cascade" }),
 });
 
-export const account = pgTable("account", {
+export const account = createTable("account", {
   id: varchar("id", { length: 36 }).primaryKey(),
   accountId: text("account_id").notNull(),
   providerId: text("provider_id").notNull(),
@@ -83,7 +86,7 @@ export const account = pgTable("account", {
   updatedAt: timestamp("updated_at").notNull(),
 });
 
-export const verification = pgTable("verification", {
+export const verification = createTable("verification", {
   id: varchar("id", { length: 36 }).primaryKey(),
   identifier: text("identifier").notNull(),
   value: text("value").notNull(),
