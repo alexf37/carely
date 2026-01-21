@@ -34,6 +34,7 @@ import type { FileUIPart } from "ai";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
 import { PdfThumbnail } from "@/components/pdf-thumbnail";
+import { EmergencyHotlines } from "@/components/emergency-hotlines";
 
 function getMessageText(message: { parts: Array<{ type: string; text?: string }> }): string {
     return message.parts
@@ -271,6 +272,53 @@ type ChatProps = {
     initialMessages?: unknown[];
 };
 
+type EmergencyHotlineType =
+    | "general"
+    | "poison"
+    | "suicide"
+    | "domesticViolence"
+    | "sexualAssault"
+    | "childAbuse"
+    | "substanceAbuse"
+    | "veterans"
+    | "lgbtqYouth"
+    | "eatingDisorders";
+
+type EmergencyHotlineToolResult = {
+    types: EmergencyHotlineType[];
+};
+
+type ToolMessagePart = {
+    type: string;
+    state?: "input-available" | "output-available" | "partial-call" | "call";
+    output?: unknown;
+};
+
+function renderEmergencyHotlineToolPart(part: ToolMessagePart, partIndex: number) {
+    if (part.type !== "tool-displayEmergencyHotlines") {
+        return null;
+    }
+
+    // When output is available, render the emergency hotlines
+    if (part.state === "output-available" && part.output) {
+        const output = part.output as EmergencyHotlineToolResult | undefined;
+        if (output?.types && output.types.length > 0) {
+            return (
+                <div key={partIndex} className="mt-1.5">
+                    <EmergencyHotlines types={output.types} />
+                </div>
+            );
+        }
+    }
+
+    // Show loading state while tool is executing
+    return (
+        <div key={partIndex} className="mt-3 text-sm text-muted-foreground">
+            Loading emergency resources...
+        </div>
+    );
+}
+
 export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
     const [input, setInput] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -362,13 +410,13 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
                                 (status === "streaming" || status === "submitted");
                             const showTimestamp =
                                 message.role === "user" || !isAssistantStreaming;
-
+                            console.log("message", JSON.stringify(message, null, 2));
                             return (
                                 <Message key={message.id} from={message.role}>
                                     {message.role === "user" && files.length > 0 && (
                                         <MessageAttachments>
-                                            {files.map((file, index) => (
-                                                <SentMessageAttachment key={index} data={file} />
+                                            {files.map((file, fileIndex) => (
+                                                <SentMessageAttachment key={fileIndex} data={file} />
                                             ))}
                                         </MessageAttachments>
                                     )}
@@ -383,6 +431,14 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
                                             )}
                                         </MessageContent>
                                     ) : null}
+                                    {/* Render tool UI components only after message is complete */}
+                                    {!isAssistantStreaming && message.parts.map((part, partIndex) => {
+                                        console.log("tool part", part);
+                                        return renderEmergencyHotlineToolPart(
+                                            part as ToolMessagePart,
+                                            partIndex
+                                        );
+                                    })}
                                     {showTimestamp && (
                                         <MessageTimestamp
                                             date={getMessageTimestamp(message)}
