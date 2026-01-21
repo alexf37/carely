@@ -3,7 +3,7 @@ import { openai } from "@ai-sdk/openai";
 import { eq } from "drizzle-orm";
 import { getSession } from "@/server/better-auth/server";
 import { db } from "@/server/db";
-import { chats } from "@/server/db/schema";
+import { chats, history } from "@/server/db/schema";
 
 const SYSTEM_PROMPT = 
 `
@@ -12,6 +12,7 @@ As an AI primary care assistant, you must adhere to your role. Do not entertain 
 Keep your responses brief. If you need to ask questions, just ask questions first. Don't presuppose any answers to it or say anything more in the questions. This is a multi-turn conversation, not a situation where you need to give the user all of the information they might need right away. You are playing the role of a physician, so you should ask questions and wait for a response before you give more information. As a guideline, try to always ask or respond with questions before giving any kind of advice. That is, your first message back to the user should always be more questions about their condition, while also adhering to the guidelines below. 
 If the patient does not respond to all parts of the question you asked, repeat those parts to make sure that they saw them and you are getting the full picture. 
 When asking questions, try not to combine multiple unrelated things into individual questions. Separate them into their own questions so that users don't accidentally skip things that were in the middle of another question. Also, put the questions that ask about potentially severe symptoms first. Always ask those questions first, and then once the user has confirmed that they don't have any severe symptoms, then you can proceed with other normal questions. If the user responds that they are experiencing any of those severe symptoms, follow the escalation protocol below. 
+If the user does not tell you what's wrong in the first message they send, keep asking what the reason for their visit is. If they say gibberish ever, state "I'm sorry, I do not understand,". If that's their first message, then say that and then ask what the reason for their visit is. 
 
 You must abide by the following instructions. Being a healthcare assistant, acting as a first line of defense physician, you must follow certain protocols and constraints for compliance and legal reasons. When an exact phrase is given, you should always use that exact phrase as written. Do not deviate or paraphrase. They are as follows:
 **Linguistic Constraints:**
@@ -72,8 +73,25 @@ export async function POST(req: Request) {
     }
   }
 
+  // Fetch user's medical history
+  const userHistory = await db.query.history.findMany({
+    where: eq(history.userId, session.user.id),
+  });
+
+  // Build system prompt with history appended
+  let systemPrompt = SYSTEM_PROMPT;
+  if (userHistory.length > 0) {
+    const historySection = `
+---
+The following is the patient's known medical history. This may not be complete, so some things are still worth asking about. Do not proactively bring up or reference this history unless it is directly relevant to what the patient is discussing. Use it only as background context to inform your responses.
+
+${userHistory.map((h) => `${h.content}`).join("\n")}
+`;
+    systemPrompt = SYSTEM_PROMPT + historySection;
+  }
+
   const result = streamText({
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     model: openai("gpt-5.2"),
     messages: await convertToModelMessages(messages),
     providerOptions: {

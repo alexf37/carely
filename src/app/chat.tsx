@@ -25,7 +25,7 @@ import {
 import { SpeechInput } from "@/components/ai-elements/speech-input";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { PaperclipIcon, PlusIcon, XIcon } from "lucide-react";
@@ -39,6 +39,45 @@ function getMessageText(message: { parts: Array<{ type: string; text?: string }>
         .filter((part) => part.type === "text" || part.type === "text-delta")
         .map((part) => part.text ?? "")
         .join("");
+}
+
+function formatMessageTime(date: Date): string {
+    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+type MessageTimestampProps = {
+    date: Date;
+    align?: "left" | "right";
+    animate?: boolean;
+};
+
+function MessageTimestamp({ date, align = "left", animate = false }: MessageTimestampProps) {
+    if (animate) {
+        return (
+            <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+                className={cn(
+                    "text-xs text-muted-foreground",
+                    align === "right" && "ml-auto"
+                )}
+            >
+                {formatMessageTime(date)}
+            </motion.span>
+        );
+    }
+
+    return (
+        <span
+            className={cn(
+                "text-xs text-muted-foreground",
+                align === "right" && "ml-auto"
+            )}
+        >
+            {formatMessageTime(date)}
+        </span>
+    );
 }
 
 function getMessageFiles(message: { parts: Array<{ type: string; url?: string; mediaType?: string; filename?: string }> }): FileUIPart[] {
@@ -235,6 +274,7 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
     const [input, setInput] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [transport] = useState(() => createChatTransport(chatPublicId));
+    const messageTimestampsRef = useRef<Map<string, Date>>(new Map());
 
     const { messages, sendMessage, status } = useChat({
         transport,
@@ -243,6 +283,19 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
     });
 
     const hasInitialMessages = initialMessages.length > 0;
+
+    // Track timestamps for new messages
+    useEffect(() => {
+        for (const message of messages) {
+            if (!messageTimestampsRef.current.has(message.id)) {
+                messageTimestampsRef.current.set(message.id, new Date());
+            }
+        }
+    }, [messages]);
+
+    function getMessageTimestamp(messageId: string): Date {
+        return messageTimestampsRef.current.get(messageId) ?? new Date();
+    }
 
     function handleSubmit(message: PromptInputMessage) {
         if (!message.text.trim() && message.files.length === 0) return;
@@ -307,6 +360,12 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
                                 isLastMessage &&
                                 !text &&
                                 (status === "streaming" || status === "submitted");
+                            const isAssistantStreaming =
+                                message.role === "assistant" &&
+                                isLastMessage &&
+                                (status === "streaming" || status === "submitted");
+                            const showTimestamp =
+                                message.role === "user" || !isAssistantStreaming;
 
                             return (
                                 <Message key={message.id} from={message.role}>
@@ -328,6 +387,13 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
                                             )}
                                         </MessageContent>
                                     ) : null}
+                                    {showTimestamp && (
+                                        <MessageTimestamp
+                                            date={getMessageTimestamp(message.id)}
+                                            align={message.role === "user" ? "right" : "left"}
+                                            animate={message.role === "assistant"}
+                                        />
+                                    )}
                                 </Message>
                             );
                         })}

@@ -662,7 +662,7 @@ export default function IntakePage() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [measureRef, bounds] = useMeasure();
 
-  const completeIntake = api.appointment.completeIntake.useMutation();
+  const submitIntake = api.appointment.submitIntake.useMutation();
   const createAppointment = api.appointment.create.useMutation();
 
   const currentStepData = STEPS[currentStep]!;
@@ -742,8 +742,17 @@ export default function IntakePage() {
 
     setIsSubmitting(true);
     try {
-      // Mark intake as complete
-      await completeIntake.mutateAsync();
+      // Submit intake data and store in history table
+      await submitIntake.mutateAsync({
+        dateOfBirth: formData.dateOfBirth,
+        sexAssignedAtBirth: formData.sexAssignedAtBirth,
+        gender: formData.gender,
+        allergies: formData.allergies,
+        chronicIllnesses: formData.chronicIllnesses,
+        medicalHistory: formData.medicalHistory,
+        currentMedications: formData.currentMedications,
+        lifestyleAnswers: formData.lifestyleAnswers,
+      });
 
       // Create a new appointment
       const { publicId } = await createAppointment.mutateAsync();

@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db";
-import { chats } from "@/server/db/schema";
+import { chats, user } from "@/server/db/schema";
 import { getSession } from "@/server/better-auth/server";
 import { AppointmentChat } from "./appointment-chat";
 
@@ -15,6 +15,16 @@ export default async function AppointmentPage({ params }: PageProps) {
 
   if (!session) {
     redirect("/");
+  }
+
+  // Check if user has completed intake
+  const userData = await db.query.user.findFirst({
+    where: eq(user.id, session.user.id),
+    columns: { hasCompletedIntake: true },
+  });
+
+  if (!userData?.hasCompletedIntake) {
+    redirect("/intake");
   }
 
   // Validate UUID format

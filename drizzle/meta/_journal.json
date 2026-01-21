@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1768909683283,
-      "tag": "0000_good_wildside",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1768911655237,
-      "tag": "0001_lonely_radioactive_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1768997676329,
-      "tag": "0002_fresh_mystique",
+      "when": 1769013932350,
+      "tag": "0000_familiar_jetstream",
       "breakpoints": true
     }
   ]

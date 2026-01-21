@@ -1,11 +1,11 @@
 {
-  "id": "0b626718-ecc5-4bfc-a76a-5042a91b99c7",
+  "id": "374543ef-46c1-4cef-9779-8e80bacd5c69",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.account": {
-      "name": "account",
+    "public.carely_account": {
+      "name": "carely_account",
       "schema": "",
       "columns": {
         "id": {
@@ -89,10 +89,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "account_user_id_user_id_fk": {
-          "name": "account_user_id_user_id_fk",
-          "tableFrom": "account",
-          "tableTo": "user",
+        "carely_account_user_id_carely_user_id_fk": {
+          "name": "carely_account_user_id_carely_user_id_fk",
+          "tableFrom": "carely_account",
+          "tableTo": "carely_user",
           "columnsFrom": [
             "user_id"
           ],
@@ -100,6 +100,198 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.carely_chat": {
+      "name": "carely_chat",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "publicId": {
+          "name": "publicId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "userId": {
+          "name": "userId",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "carely_chat_userId_carely_user_id_fk": {
+          "name": "carely_chat_userId_carely_user_id_fk",
+          "tableFrom": "carely_chat",
+          "tableTo": "carely_user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "carely_chat_publicId_unique": {
+          "name": "carely_chat_publicId_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "publicId"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.carely_document": {
+      "name": "carely_document",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "userId": {
+          "name": "userId",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "filename": {
+          "name": "filename",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "document_user_idx": {
+          "name": "document_user_idx",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "carely_document_userId_carely_user_id_fk": {
+          "name": "carely_document_userId_carely_user_id_fk",
+          "tableFrom": "carely_document",
+          "tableTo": "carely_user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.carely_history": {
+      "name": "carely_history",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "carely_history_userId_carely_user_id_fk": {
+          "name": "carely_history_userId_carely_user_id_fk",
+          "tableFrom": "carely_history",
+          "tableTo": "carely_user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -177,10 +369,10 @@
         }
       },
       "foreignKeys": {
-        "carely_post_createdById_user_id_fk": {
-          "name": "carely_post_createdById_user_id_fk",
+        "carely_post_createdById_carely_user_id_fk": {
+          "name": "carely_post_createdById_carely_user_id_fk",
           "tableFrom": "carely_post",
-          "tableTo": "user",
+          "tableTo": "carely_user",
           "columnsFrom": [
             "createdById"
           ],
@@ -197,8 +389,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.session": {
-      "name": "session",
+    "public.carely_session": {
+      "name": "carely_session",
       "schema": "",
       "columns": {
         "id": {
@@ -252,10 +444,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "session_user_id_user_id_fk": {
-          "name": "session_user_id_user_id_fk",
-          "tableFrom": "session",
-          "tableTo": "user",
+        "carely_session_user_id_carely_user_id_fk": {
+          "name": "carely_session_user_id_carely_user_id_fk",
+          "tableFrom": "carely_session",
+          "tableTo": "carely_user",
           "columnsFrom": [
             "user_id"
           ],
@@ -268,8 +460,8 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "session_token_unique": {
-          "name": "session_token_unique",
+        "carely_session_token_unique": {
+          "name": "carely_session_token_unique",
           "nullsNotDistinct": false,
           "columns": [
             "token"
@@ -280,8 +472,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.user": {
-      "name": "user",
+    "public.carely_user": {
+      "name": "carely_user",
       "schema": "",
       "columns": {
         "id": {
@@ -314,6 +506,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "has_completed_intake": {
+          "name": "has_completed_intake",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -331,8 +530,8 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "user_email_unique": {
-          "name": "user_email_unique",
+        "carely_user_email_unique": {
+          "name": "carely_user_email_unique",
           "nullsNotDistinct": false,
           "columns": [
             "email"
@@ -343,8 +542,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.verification": {
-      "name": "verification",
+    "public.carely_verification": {
+      "name": "carely_verification",
       "schema": "",
       "columns": {
         "id": {
@@ -386,6 +585,70 @@
       },
       "indexes": {},
       "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.carely_visit": {
+      "name": "carely_visit",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "chatId": {
+          "name": "chatId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "carely_visit_userId_carely_user_id_fk": {
+          "name": "carely_visit_userId_carely_user_id_fk",
+          "tableFrom": "carely_visit",
+          "tableTo": "carely_user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "carely_visit_chatId_carely_chat_id_fk": {
+          "name": "carely_visit_chatId_carely_chat_id_fk",
+          "tableFrom": "carely_visit",
+          "tableTo": "carely_chat",
+          "columnsFrom": [
+            "chatId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

@@ -25,6 +25,13 @@ export const chats = createTable("chat", (d) => ({
   content: d.jsonb("content").notNull().default({}),
 }));
 
+export const history = createTable("history", (d) => ({
+  id: d.uuid().primaryKey(),
+  userId: d.varchar({ length: 255 }).notNull().references(() => user.id),
+  createdAt: d.timestamp().$defaultFn(() => new Date()).notNull(),
+  content: d.text().notNull(),
+}));
+
 export const posts = createTable(
   "post",
   (d) => ({
@@ -124,4 +131,36 @@ export const accountsRelations = relations(account, ({ one }) => ({
 
 export const sessionsRelations = relations(session, ({ one }) => ({
   user: one(user, { fields: [session.userId], references: [user.id] }),
+}));
+
+export const visitsRelations = relations(visits, ({ one }) => ({
+  user: one(user, { fields: [visits.userId], references: [user.id] }),
+  chat: one(chats, { fields: [visits.chatId], references: [chats.id] }),
+}));
+
+export const chatsRelations = relations(chats, ({ one, many }) => ({
+  user: one(user, { fields: [chats.userId], references: [user.id] }),
+  visits: many(visits),
+}));
+
+export const documents = createTable(
+  "document",
+  (d) => ({
+    id: d.uuid().primaryKey().defaultRandom(),
+    userId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    url: d.text().notNull(),
+    filename: d.varchar({ length: 255 }).notNull(),
+    createdAt: d
+      .timestamp()
+      .$defaultFn(() => new Date())
+      .notNull(),
+  }),
+  (t) => [index("document_user_idx").on(t.userId)]
+);
+
+export const documentsRelations = relations(documents, ({ one }) => ({
+  user: one(user, { fields: [documents.userId], references: [user.id] }),
 }));

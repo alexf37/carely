@@ -3162,7 +3162,7 @@ export default function ExamplePage() {
 						<Stethoscope className="size-5 text-white" />
 					</div>
 					<div>
-						<h1 className="font-semibold text-foreground">Carely AI</h1>
+						<h1 className="font-light text-foreground">Carely AI</h1>
 						<p className="text-muted-foreground text-xs">
 							Your AI Primary Care Physician
 						</p>
