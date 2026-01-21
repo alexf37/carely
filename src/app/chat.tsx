@@ -25,7 +25,8 @@ import {
 import { SpeechInput } from "@/components/ai-elements/speech-input";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { type ChatMessageMetadata, createMessageMetadata } from "@/lib/chat-types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { PaperclipIcon, PlusIcon, XIcon } from "lucide-react";
@@ -274,7 +275,6 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
     const [input, setInput] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [transport] = useState(() => createChatTransport(chatPublicId));
-    const messageTimestampsRef = useRef<Map<string, Date>>(new Map());
 
     const { messages, sendMessage, status } = useChat({
         transport,
@@ -284,17 +284,12 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
 
     const hasInitialMessages = initialMessages.length > 0;
 
-    // Track timestamps for new messages
-    useEffect(() => {
-        for (const message of messages) {
-            if (!messageTimestampsRef.current.has(message.id)) {
-                messageTimestampsRef.current.set(message.id, new Date());
-            }
+    function getMessageTimestamp(message: { metadata?: unknown }): Date {
+        const metadata = message.metadata as ChatMessageMetadata | undefined;
+        if (metadata?.timestamp) {
+            return new Date(metadata.timestamp);
         }
-    }, [messages]);
-
-    function getMessageTimestamp(messageId: string): Date {
-        return messageTimestampsRef.current.get(messageId) ?? new Date();
+        return new Date();
     }
 
     function handleSubmit(message: PromptInputMessage) {
@@ -302,6 +297,7 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
         sendMessage({
             text: message.text,
             files: message.files,
+            metadata: createMessageMetadata(),
         });
         setInput("");
     }
@@ -389,7 +385,7 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
                                     ) : null}
                                     {showTimestamp && (
                                         <MessageTimestamp
-                                            date={getMessageTimestamp(message.id)}
+                                            date={getMessageTimestamp(message)}
                                             align={message.role === "user" ? "right" : "left"}
                                             animate={message.role === "assistant"}
                                         />

@@ -1,9 +1,10 @@
-import { streamText, type UIMessage, convertToModelMessages } from 'ai';
+import { streamText, convertToModelMessages } from 'ai';
 import { openai } from "@ai-sdk/openai";
 import { eq } from "drizzle-orm";
 import { getSession } from "@/server/better-auth/server";
 import { db } from "@/server/db";
 import { chats, history } from "@/server/db/schema";
+import { type ChatUIMessage, createMessageMetadata } from "@/lib/chat-types";
 
 const SYSTEM_PROMPT = 
 `
@@ -56,7 +57,13 @@ export async function POST(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const { messages, chatPublicId }: { messages: UIMessage[]; chatPublicId?: string } = await req.json();
+  const { messages, chatPublicId }: { messages: ChatUIMessage[]; chatPublicId?: string } = await req.json();
+
+  // Ensure all incoming messages have timestamp metadata
+  const messagesWithMetadata: ChatUIMessage[] = messages.map((msg) => ({
+    ...msg,
+    metadata: msg.metadata ?? createMessageMetadata(),
+  }));
 
   // If chatPublicId is provided, verify ownership
   let chatRecord: typeof chats.$inferSelect | undefined;
@@ -91,10 +98,13 @@ ${userHistory.map((h) => `${h.content}`).join("\n")}
     systemPrompt = SYSTEM_PROMPT + historySection;
   }
 
+  // Capture the timestamp when the assistant message starts
+  let assistantMessageMetadata: ReturnType<typeof createMessageMetadata> | null = null;
+
   const result = streamText({
     system: systemPrompt,
     model: openai("gpt-5.2"),
-    messages: await convertToModelMessages(messages),
+    messages: await convertToModelMessages(messagesWithMetadata),
     providerOptions: {
         openai: {
             reasoningEffort: "medium"
@@ -115,13 +125,14 @@ ${userHistory.map((h) => `${h.content}`).join("\n")}
                 .join("")
             : "";
 
-        const assistantMessage = {
+        const assistantMessage: ChatUIMessage = {
           id: response.id,
           role: "assistant" as const,
           parts: [{ type: "text" as const, text: textContent }],
+          metadata: assistantMessageMetadata ?? createMessageMetadata(),
         };
 
-        const updatedMessages = [...messages, assistantMessage];
+        const updatedMessages = [...messagesWithMetadata, assistantMessage];
 
         await db
           .update(chats)
@@ -131,5 +142,15 @@ ${userHistory.map((h) => `${h.content}`).join("\n")}
     },
   });
 
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse({
+    messageMetadata: ({ part }) => {
+      // Set timestamp when the assistant message starts streaming
+      if (part.type === "start") {
+        assistantMessageMetadata = createMessageMetadata();
+        return assistantMessageMetadata;
+      }
+      // Return the same metadata on finish to ensure consistency
+      return assistantMessageMetadata ?? createMessageMetadata();
+    },
+  });
 }
