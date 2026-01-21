@@ -28,7 +28,7 @@ export default function Home() {
   const [authIsLoading, setAuthIsLoading] = useState(false);
 
   return (
-    <main className="flex flex-col h-screen overflow-hidden w-full max-w-screen-md mx-auto">
+    <main className="flex flex-col h-screen overflow-hidden w-full px-4 max-w-screen-md mx-auto">
       <div className="flex items-center py-4 justify-between w-full shrink-0">
         <h1 className="text-3xl font-light">Carely</h1>
         <div className="flex items-center gap-2">

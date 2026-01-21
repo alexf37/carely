@@ -309,7 +309,7 @@ export function Chat() {
                 <ConversationScrollButton />
             </Conversation>
 
-            <div className=" p-4 shrink-0">
+            <div className="py-4 shrink-0">
                 <PromptInput
                     onSubmit={(message) => handleSubmit(message)}
                     accept="image/*,application/pdf,.txt,.md,.doc,.docx"
