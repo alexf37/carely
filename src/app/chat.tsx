@@ -163,7 +163,7 @@ function SentMessageAttachment({ data, className }: SentMessageAttachmentProps) 
     return (
         <div
             className={cn(
-                "group relative size-24 cursor-pointer overflow-hidden rounded-lg",
+                "group relative size-24 cursor-pointer border border-border overflow-hidden rounded-lg",
                 className
             )}
             onClick={handleClick}
@@ -271,7 +271,7 @@ export function Chat() {
         <div className="flex flex-1 min-h-0 w-full flex-col">
             <Conversation className="relative overflow-x-hidden flex-1 min-h-0">
                 {/* Top fade gradient */}
-                <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-white to-transparent" />
+                <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-background to-transparent" />
 
                 <ScrollArea className="h-full -mr-4">
                     <ConversationContent className="pr-4 pt-8 pb-8">
@@ -304,12 +304,12 @@ export function Chat() {
                 </ScrollArea>
 
                 {/* Bottom fade gradient */}
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-12 bg-gradient-to-t from-white to-transparent" />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-12 bg-gradient-to-t from-background to-transparent" />
 
                 <ConversationScrollButton />
             </Conversation>
 
-            <div className="border-t p-4 shrink-0">
+            <div className=" p-4 shrink-0">
                 <PromptInput
                     onSubmit={(message) => handleSubmit(message)}
                     accept="image/*,application/pdf,.txt,.md,.doc,.docx"
