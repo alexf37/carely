@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -175,4 +176,8 @@
     background-position: 0 0;
     filter: blur(0);
   }
+}
+
+.no-li-p-y li > p {
+  @apply my-0;
 }

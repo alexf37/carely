@@ -10,6 +10,7 @@ import {
     MessageContent,
     MessageResponse,
     MessageAttachments,
+    MessageThinking,
 } from "@/components/ai-elements/message";
 import {
     PromptInput,
@@ -275,9 +276,22 @@ export function Chat() {
 
                 <ScrollArea className="h-full -mr-4">
                     <ConversationContent className="pr-4 pt-8 pb-8">
-                        {messages.map((message) => {
+                        <Message from="assistant">
+                            <MessageContent>
+                                <MessageResponse>
+                                    Hi! I'm Carely, your primary care assistant. What brings you in today?
+                                </MessageResponse>
+                            </MessageContent>
+                        </Message>
+                        {messages.map((message, index) => {
                             const files = getMessageFiles(message);
                             const text = getMessageText(message);
+                            const isLastMessage = index === messages.length - 1;
+                            const isAssistantThinking =
+                                message.role === "assistant" &&
+                                isLastMessage &&
+                                !text &&
+                                (status === "streaming" || status === "submitted");
 
                             return (
                                 <Message key={message.id} from={message.role}>
@@ -288,7 +302,9 @@ export function Chat() {
                                             ))}
                                         </MessageAttachments>
                                     )}
-                                    {text && (
+                                    {isAssistantThinking ? (
+                                        <MessageThinking />
+                                    ) : text ? (
                                         <MessageContent>
                                             {message.role === "assistant" ? (
                                                 <MessageResponse>{text}</MessageResponse>
@@ -296,10 +312,15 @@ export function Chat() {
                                                 text
                                             )}
                                         </MessageContent>
-                                    )}
+                                    ) : null}
                                 </Message>
                             );
                         })}
+                        {status === "submitted" && messages[messages.length - 1]?.role === "user" && (
+                            <Message from="assistant">
+                                <MessageThinking />
+                            </Message>
+                        )}
                     </ConversationContent>
                 </ScrollArea>
 

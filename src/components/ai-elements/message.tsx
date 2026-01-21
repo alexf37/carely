@@ -22,6 +22,8 @@ import {
 import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
 import { createContext, memo, useContext, useEffect, useState } from "react";
 import { Streamdown } from "streamdown";
+import { Loader } from "./loader";
+import { Shimmer } from "./shimmer";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
@@ -57,6 +59,25 @@ export const MessageContent = ({
     {children}
   </div>
 );
+
+export type MessageThinkingProps = HTMLAttributes<HTMLDivElement>;
+
+export function MessageThinking({ className, ...props }: MessageThinkingProps) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 text-muted-foreground",
+        className
+      )}
+      {...props}
+    >
+      <Loader size={14} />
+      <Shimmer className="text-sm" duration={1.5}>
+        Thinking...
+      </Shimmer>
+    </div>
+  );
+}
 
 export type MessageActionsProps = ComponentProps<"div">;
 
@@ -310,7 +331,7 @@ export const MessageResponse = memo(
   ({ className, ...props }: MessageResponseProps) => (
     <Streamdown
       className={cn(
-        "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+        "size-full [&_ol]:list-decimal [&_ul]:list-disc no-li-p-y prose-sm [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         className
       )}
       {...props}
