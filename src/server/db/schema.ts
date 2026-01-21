@@ -10,6 +10,21 @@ import {
 
 export const createTable = pgTableCreator((name) => `carely_${name}`);
 
+export const visits = createTable("visit", (d) => ({
+  id: d.uuid().primaryKey(),
+  userId: d.varchar({ length: 255 }).notNull().references(() => user.id),
+  createdAt: d.timestamp().$defaultFn(() => new Date()).notNull(),
+  chatId: d.uuid().notNull().references(() => chats.id),
+}));
+
+export const chats = createTable("chat", (d) => ({
+  id: d.uuid().primaryKey(),
+  publicId: d.uuid().notNull().defaultRandom().unique(),
+  userId: d.varchar({ length: 255 }).notNull().references(() => user.id),
+  createdAt: d.timestamp().$defaultFn(() => new Date()).notNull(),
+  content: d.jsonb("content").notNull().default({}),
+}));
+
 export const posts = createTable(
   "post",
   (d) => ({
