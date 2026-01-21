@@ -57,6 +57,31 @@
   * {
     corner-shape: squircle;
   }
+  img {
+    corner-shape: none!important;
+  }
+  button.no-squircle {
+    corner-shape: none!important;
+    background: transparent!important;
+    border: none!important;
+    padding: 0!important;
+    margin: 0!important;
+    display: inline-block!important;
+    vertical-align: middle!important;
+    cursor: pointer!important;
+    user-select: none!important;
+    -webkit-user-select: none!important;
+  }
+  /* for data-slot="avatar" */
+  [data-slot="avatar"] {
+    corner-shape: none!important;
+  }
+  *:has(.no-squircle) {
+    corner-shape: none!important;
+  }
+  .no-squircle {
+    corner-shape: none!important;
+  }
 }
 
 :root {

@@ -188,9 +188,12 @@ function SentMessageAttachment({ data, className }: SentMessageAttachmentProps) 
     );
 }
 
-const chatTransport = new DefaultChatTransport({
-    api: "/api/chat",
-});
+function createChatTransport(chatPublicId?: string) {
+    return new DefaultChatTransport({
+        api: "/api/chat",
+        body: chatPublicId ? { chatPublicId } : undefined,
+    });
+}
 
 function AddAttachmentButton() {
     const attachments = usePromptInputAttachments();
@@ -223,13 +226,23 @@ function SubmitButton({ input, status }: SubmitButtonProps) {
     );
 }
 
-export function Chat() {
+type ChatProps = {
+    chatPublicId?: string;
+    initialMessages?: unknown[];
+};
+
+export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
     const [input, setInput] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [transport] = useState(() => createChatTransport(chatPublicId));
 
     const { messages, sendMessage, status } = useChat({
-        transport: chatTransport,
+        transport,
+        // @ts-expect-error - messages prop exists but TypeScript can't infer it from union type
+        messages: initialMessages,
     });
+
+    const hasInitialMessages = initialMessages.length > 0;
 
     function handleSubmit(message: PromptInputMessage) {
         if (!message.text.trim() && message.files.length === 0) return;
@@ -276,13 +289,15 @@ export function Chat() {
 
                 <ScrollArea className="h-full -mr-4">
                     <ConversationContent className="pr-4 pt-8 pb-8">
-                        <Message from="assistant">
-                            <MessageContent>
-                                <MessageResponse>
-                                    Hi! I'm Carely, your primary care assistant. What brings you in today?
-                                </MessageResponse>
-                            </MessageContent>
-                        </Message>
+                        {!hasInitialMessages && (
+                            <Message from="assistant">
+                                <MessageContent>
+                                    <MessageResponse>
+                                        Hi! I'm Carely, your primary care assistant. What brings you in today?
+                                    </MessageResponse>
+                                </MessageContent>
+                            </Message>
+                        )}
                         {messages.map((message, index) => {
                             const files = getMessageFiles(message);
                             const text = getMessageText(message);

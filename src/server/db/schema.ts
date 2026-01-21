@@ -62,6 +62,9 @@ export const user = createTable("user", {
     .$defaultFn(() => false)
     .notNull(),
   image: text("image"),
+  hasCompletedIntake: boolean("has_completed_intake")
+    .default(false)
+    .notNull(),
   createdAt: timestamp("created_at")
     .$defaultFn(() => new Date())
     .notNull(),

@@ -1,6 +1,9 @@
 import { streamText, type UIMessage, convertToModelMessages } from 'ai';
 import { openai } from "@ai-sdk/openai";
+import { eq } from "drizzle-orm";
 import { getSession } from "@/server/better-auth/server";
+import { db } from "@/server/db";
+import { chats } from "@/server/db/schema";
 
 const SYSTEM_PROMPT = 
 `
@@ -51,7 +54,23 @@ export async function POST(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  const { messages, chatPublicId }: { messages: UIMessage[]; chatPublicId?: string } = await req.json();
+
+  // If chatPublicId is provided, verify ownership
+  let chatRecord: typeof chats.$inferSelect | undefined;
+  if (chatPublicId) {
+    chatRecord = await db.query.chats.findFirst({
+      where: eq(chats.publicId, chatPublicId),
+    });
+
+    if (!chatRecord) {
+      return new Response("Chat not found", { status: 404 });
+    }
+
+    if (chatRecord.userId !== session.user.id) {
+      return new Response("Forbidden", { status: 403 });
+    }
+  }
 
   const result = streamText({
     system: SYSTEM_PROMPT,
@@ -61,6 +80,35 @@ export async function POST(req: Request) {
         openai: {
             reasoningEffort: "medium"
         }
+    },
+    async onFinish({ response }) {
+      // Persist messages if we have a chatPublicId
+      if (chatPublicId && chatRecord) {
+        // The messages array already contains the user's message
+        // We need to add the assistant's response to it
+        const assistantContent = response.messages[0]?.content;
+        const textContent = typeof assistantContent === "string"
+          ? assistantContent
+          : Array.isArray(assistantContent)
+            ? assistantContent
+                .filter((part): part is { type: "text"; text: string } => part.type === "text")
+                .map(part => part.text)
+                .join("")
+            : "";
+
+        const assistantMessage = {
+          id: response.id,
+          role: "assistant" as const,
+          parts: [{ type: "text" as const, text: textContent }],
+        };
+
+        const updatedMessages = [...messages, assistantMessage];
+
+        await db
+          .update(chats)
+          .set({ content: { messages: updatedMessages } })
+          .where(eq(chats.id, chatRecord.id));
+      }
     },
   });
 

@@ -15,6 +15,13 @@
       "when": 1768911655237,
       "tag": "0001_lonely_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1768997676329,
+      "tag": "0002_fresh_mystique",
+      "breakpoints": true
     }
   ]
 }
