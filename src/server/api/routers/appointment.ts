@@ -167,26 +167,55 @@ function buildHistoryRecords(data: z.infer<typeof intakeFormSchema>): string[] {
   return records;
 }
 
+const APPOINTMENTS_PAGE_SIZE = 10;
+
 export const appointmentRouter = createTRPCRouter({
-  list: protectedProcedure.query(async ({ ctx }) => {
-    const userVisits = await ctx.db.query.visits.findMany({
-      where: eq(visits.userId, ctx.session.user.id),
-      orderBy: [desc(visits.createdAt)],
-      with: {
-        chat: {
-          columns: {
-            publicId: true,
+  list: protectedProcedure
+    .input(
+      z.object({
+        cursor: z.string().nullish(),
+        limit: z.number().min(1).max(100).default(APPOINTMENTS_PAGE_SIZE),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const { cursor, limit } = input;
+
+      const userVisits = await ctx.db.query.visits.findMany({
+        where: cursor
+          ? (visits, { eq, and, lt }) =>
+              and(
+                eq(visits.userId, ctx.session.user.id),
+                lt(visits.createdAt, new Date(cursor))
+              )
+          : eq(visits.userId, ctx.session.user.id),
+        orderBy: [desc(visits.createdAt)],
+        limit: limit + 1,
+        with: {
+          chat: {
+            columns: {
+              publicId: true,
+              description: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return userVisits.map((visit) => ({
-      id: visit.id,
-      createdAt: visit.createdAt,
-      publicId: visit.chat.publicId,
-    }));
-  }),
+      let nextCursor: string | undefined = undefined;
+      if (userVisits.length > limit) {
+        const nextItem = userVisits.pop();
+        nextCursor = nextItem?.createdAt.toISOString();
+      }
+
+      return {
+        items: userVisits.map((visit) => ({
+          id: visit.id,
+          createdAt: visit.createdAt,
+          publicId: visit.chat.publicId,
+          description: visit.chat.description,
+        })),
+        nextCursor,
+      };
+    }),
 
   create: protectedProcedure.mutation(async ({ ctx }) => {
     const chatId = crypto.randomUUID();

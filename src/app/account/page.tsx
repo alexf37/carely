@@ -7,6 +7,7 @@ import { authClient, type ExtendedUser } from "@/server/better-auth/client";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -140,7 +141,9 @@ export default function AccountPage() {
 
       {/* Header */}
       <header className="absolute top-0 left-0 right-0 flex items-center py-4 px-4 md:px-8 justify-between w-full shrink-0 max-w-screen-md mx-auto">
-        <h1 className="text-2xl font-light tracking-tight">Carely</h1>
+        <Link href="/">
+          <h1 className="text-2xl font-light tracking-tight">Carely</h1>
+        </Link>
         <div className="flex items-center gap-2">
           <ModeToggle />
           <UserMenu userName={session.data.user.name ?? ""} />

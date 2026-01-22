@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { authClient } from "@/server/better-auth/client";
 import { Spinner } from "@/components/ui/spinner";
 import { Chat } from "@/app/chat";
+import Link from "next/link";
 
 type AppointmentChatProps = {
   chatPublicId: string;
@@ -18,7 +19,9 @@ export function AppointmentChat({ chatPublicId, initialMessages }: AppointmentCh
   return (
     <main className="flex flex-col h-screen overflow-hidden w-full px-4 max-w-screen-md mx-auto">
       <div className="flex items-center py-4 justify-between w-full shrink-0">
-        <h1 className="text-3xl font-light">Carely</h1>
+        <Link href="/">
+          <h1 className="text-3xl font-light">Carely</h1>
+        </Link>
         <div className="flex items-center gap-2">
           <ModeToggle />
           {session.data ? (

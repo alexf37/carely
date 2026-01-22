@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -782,7 +783,9 @@ export default function IntakePage() {
   return (
     <main className="flex flex-col relative h-screen w-full px-4 max-w-screen-md mx-auto">
       <div className="flex items-center absolute w-full top-0 left-0 py-4 justify-between w-full shrink-0">
-        <h1 className="text-3xl font-light">Carely</h1>
+        <Link href="/">
+          <h1 className="text-3xl font-light">Carely</h1>
+        </Link>
         <ModeToggle />
       </div>
 

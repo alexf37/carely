@@ -8,6 +8,13 @@
       "when": 1769013932350,
       "tag": "0000_familiar_jetstream",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1769037669624,
+      "tag": "0001_square_scalphunter",
+      "breakpoints": true
     }
   ]
 }

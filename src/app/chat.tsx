@@ -25,7 +25,7 @@ import {
 import { SpeechInput } from "@/components/ai-elements/speech-input";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import { type ChatMessageMetadata, createMessageMetadata } from "@/lib/chat-types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,10 @@ import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
 import { PdfThumbnail } from "@/components/pdf-thumbnail";
 import { EmergencyHotlines } from "@/components/emergency-hotlines";
+import { FollowUpOptions } from "@/components/follow-up-options";
+import { LocationRequest } from "@/components/location-request";
+import { NearbyHealthcare } from "@/components/nearby-healthcare";
+import type { HealthcareFacility } from "@/ai/tools";
 
 function getMessageText(message: { parts: Array<{ type: string; text?: string }> }): string {
     return message.parts
@@ -272,6 +276,13 @@ type ChatProps = {
     initialMessages?: unknown[];
 };
 
+const DEFAULT_ASSISTANT_MESSAGE = {
+    id: "initial-assistant-message",
+    role: "assistant" as const,
+    parts: [{ type: "text" as const, text: "Hi! I'm Carely, your primary care assistant. What brings you in today?" }],
+    // No timestamp to avoid SSR hydration mismatch - timestamp display is skipped for this message
+};
+
 type EmergencyHotlineType =
     | "general"
     | "poison"
@@ -288,10 +299,46 @@ type EmergencyHotlineToolResult = {
     types: EmergencyHotlineType[];
 };
 
+type FollowUpOption = "calendar" | "email_now" | "email_scheduled";
+
+type ScheduleFollowUpInput = {
+    message?: string;
+    reason: string;
+    recommendedDate: string;
+    additionalNotes?: string;
+};
+
+type FollowUpToolState = {
+    selectedOption?: FollowUpOption;
+    isProcessing: boolean;
+    isComplete: boolean;
+};
+
+type LocationToolState = {
+    status: "idle" | "requesting" | "granted" | "denied";
+    coordinates?: { latitude: number; longitude: number; city?: string };
+    error?: string;
+};
+
+type GetUserLocationInput = {
+    reason: string;
+};
+
+type FindNearbyHealthcareOutput = {
+    success: boolean;
+    facilities: HealthcareFacility[];
+    searchContext?: string;
+    searchQuery?: string;
+    error?: string;
+};
+
 type ToolMessagePart = {
     type: string;
-    state?: "input-available" | "output-available" | "partial-call" | "call";
+    state?: "input-available" | "output-available" | "partial-call" | "call" | "streaming";
     output?: unknown;
+    input?: unknown;
+    toolCallId?: string;
+    toolName?: string;
 };
 
 function renderEmergencyHotlineToolPart(part: ToolMessagePart, partIndex: number) {
@@ -323,14 +370,346 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
     const [input, setInput] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [transport] = useState(() => createChatTransport(chatPublicId));
+    const [followUpStates, setFollowUpStates] = useState<Record<string, FollowUpToolState>>({});
+    const [locationStates, setLocationStates] = useState<Record<string, LocationToolState>>({});
 
-    const { messages, sendMessage, status } = useChat({
+    // Use the default assistant message if no initial messages are provided
+    const messagesForChat = initialMessages.length > 0 ? initialMessages : [DEFAULT_ASSISTANT_MESSAGE];
+
+    const { messages, sendMessage, status, addToolResult } = useChat({
         transport,
         // @ts-expect-error - messages prop exists but TypeScript can't infer it from union type
-        messages: initialMessages,
+        messages: messagesForChat,
+        // Allow multiple round trips for tool calls (e.g., scheduleFollowUp -> sendFollowUpEmailNow)
+        maxSteps: 4,
     });
 
-    const hasInitialMessages = initialMessages.length > 0;
+    // Track if we need to continue the conversation after adding a tool result
+    const [pendingContinuation, setPendingContinuation] = useState<{ text: string; hidden?: boolean } | null>(null);
+
+    // Ref to track which location tool calls have been handled (prevents duplicate processing)
+    const handledLocationToolCallsRef = useRef<Set<string>>(new Set());
+
+    // Effect to trigger continuation after tool result is added to messages
+    useEffect(() => {
+        if (pendingContinuation && status === "ready") {
+            console.log("[Continuation] Triggering via sendMessage:", pendingContinuation.text, "hidden:", pendingContinuation.hidden);
+            const { text, hidden } = pendingContinuation;
+            setPendingContinuation(null);
+            sendMessage({
+                text,
+                metadata: createMessageMetadata({ hidden })
+            }).catch((err) => {
+                console.error("[Continuation] Failed:", err);
+            });
+        }
+    }, [pendingContinuation, status, sendMessage]);
+
+    // Get the user-facing message for the selected follow-up option
+    function getFollowUpMessage(option: FollowUpOption): string {
+        switch (option) {
+            case "calendar":
+                return "I'll add this to my calendar myself.";
+            case "email_now":
+                return "Please send me an email with the follow-up details now.";
+            case "email_scheduled":
+                return "Send me a reminder email when it's time for the follow-up.";
+        }
+    }
+
+    const handleFollowUpSelect = useCallback(
+        (toolCallId: string, option: FollowUpOption, inputData: ScheduleFollowUpInput) => {
+            console.log("[FollowUp] User selected option:", option, "for toolCallId:", toolCallId);
+
+            // Update state to show processing
+            setFollowUpStates((prev) => ({
+                ...prev,
+                [toolCallId]: { selectedOption: option, isProcessing: true, isComplete: false },
+            }));
+
+            // Prepare the output based on the option selected
+            const output = {
+                selectedOption: option,
+                reason: inputData.reason,
+                recommendedDate: inputData.recommendedDate,
+                additionalNotes: inputData.additionalNotes,
+            };
+
+            console.log("[FollowUp] Calling addToolResult with output:", output);
+
+            // Add the tool result
+            addToolResult({
+                tool: "scheduleFollowUp",
+                toolCallId,
+                output,
+            });
+
+            // Set the continuation message based on what the user selected
+            const continuationMessage = getFollowUpMessage(option);
+            console.log("[FollowUp] addToolResult called, setting continuation message:", continuationMessage);
+            setPendingContinuation({ text: continuationMessage });
+
+            // Mark as complete after a delay
+            setTimeout(() => {
+                setFollowUpStates((prev) => ({
+                    ...prev,
+                    [toolCallId]: { ...prev[toolCallId], isProcessing: false, isComplete: true },
+                }));
+            }, 2000);
+        },
+        [addToolResult]
+    );
+
+    const handleLocationGranted = useCallback(
+        (toolCallId: string, coords: { latitude: number; longitude: number; city?: string }) => {
+            // Guard: check if already handled using ref (works even with stale closures)
+            if (handledLocationToolCallsRef.current.has(toolCallId)) {
+                console.log("[Location] Already handled toolCallId (ref guard):", toolCallId);
+                return;
+            }
+
+            // Mark as handled immediately to prevent any race conditions
+            handledLocationToolCallsRef.current.add(toolCallId);
+
+            console.log("[Location] User granted location:", coords, "for toolCallId:", toolCallId);
+
+            // Update state
+            setLocationStates((prev) => ({
+                ...prev,
+                [toolCallId]: { status: "granted", coordinates: coords },
+            }));
+
+            // Add the tool result with the coordinates
+            addToolResult({
+                tool: "getUserLocation",
+                toolCallId,
+                output: {
+                    success: true,
+                    latitude: coords.latitude,
+                    longitude: coords.longitude,
+                    city: coords.city,
+                },
+            });
+
+            // Trigger continuation so the AI can call findNearbyHealthcare (hidden from UI)
+            const locationMessage = coords.city
+                ? `I'm located in ${coords.city}.`
+                : "Here's my location.";
+            console.log("[Location] Setting hidden continuation:", locationMessage);
+            setPendingContinuation({ text: locationMessage, hidden: true });
+        },
+        [addToolResult]
+    );
+
+    const handleLocationDenied = useCallback(
+        (toolCallId: string, error: string) => {
+            // Guard: check if already handled using ref (works even with stale closures)
+            if (handledLocationToolCallsRef.current.has(toolCallId)) {
+                console.log("[Location] Already handled toolCallId (ref guard):", toolCallId);
+                return;
+            }
+
+            // Mark as handled immediately to prevent any race conditions
+            handledLocationToolCallsRef.current.add(toolCallId);
+
+            console.log("[Location] User denied location:", error, "for toolCallId:", toolCallId);
+
+            // Update state
+            setLocationStates((prev) => ({
+                ...prev,
+                [toolCallId]: { status: "denied", error },
+            }));
+
+            // Add the tool result with the error
+            addToolResult({
+                tool: "getUserLocation",
+                toolCallId,
+                output: {
+                    success: false,
+                    error,
+                },
+            });
+
+            // Trigger continuation so the AI can ask for city/zip instead (hidden from UI)
+            console.log("[Location] Setting hidden continuation for denied location");
+            setPendingContinuation({ text: "I'd prefer not to share my exact location.", hidden: true });
+        },
+        [addToolResult]
+    );
+
+    function renderFollowUpToolPart(part: ToolMessagePart, partIndex: number) {
+        if (part.type !== "tool-scheduleFollowUp") {
+            return null;
+        }
+
+        const toolCallId = part.toolCallId;
+        if (!toolCallId) return null;
+
+        const input = part.input as ScheduleFollowUpInput | undefined;
+        if (!input) return null;
+
+        const toolState = followUpStates[toolCallId];
+
+        // If output is available, the tool has been responded to
+        if (part.state === "output-available") {
+            // Try to get the selected option from the output if not in local state
+            const output = part.output as { selectedOption?: FollowUpOption | "skipped"; skippedByUser?: boolean } | undefined;
+            const selectedOption = toolState?.selectedOption ?? output?.selectedOption;
+
+            // If user skipped by sending another message, don't show the UI at all
+            if (output?.skippedByUser || selectedOption === "skipped") {
+                return null;
+            }
+
+            return (
+                <div key={partIndex} className="mt-1.5">
+                    <FollowUpOptions
+                        message={input.message}
+                        reason={input.reason}
+                        recommendedDate={input.recommendedDate}
+                        additionalNotes={input.additionalNotes}
+                        onSelect={() => { }}
+                        selectedOption={selectedOption as FollowUpOption | undefined}
+                        isProcessing={false}
+                        isComplete={true}
+                    />
+                </div>
+            );
+        }
+
+        // Tool is waiting for user input (call or input-available state)
+        if (part.state === "call" || part.state === "input-available") {
+            return (
+                <div key={partIndex} className="mt-1.5">
+                    <FollowUpOptions
+                        message={input.message}
+                        reason={input.reason}
+                        recommendedDate={input.recommendedDate}
+                        additionalNotes={input.additionalNotes}
+                        onSelect={(option) => handleFollowUpSelect(toolCallId, option, input)}
+                        selectedOption={toolState?.selectedOption}
+                        isProcessing={toolState?.isProcessing}
+                        isComplete={toolState?.isComplete}
+                    />
+                </div>
+            );
+        }
+
+        // Show loading state for partial-call
+        if (part.state === "partial-call") {
+            return (
+                <div key={partIndex} className="mt-3 text-sm text-muted-foreground">
+                    Loading follow-up options...
+                </div>
+            );
+        }
+
+        return null;
+    }
+
+    function renderLocationToolPart(part: ToolMessagePart, partIndex: number) {
+        if (part.type !== "tool-getUserLocation") {
+            return null;
+        }
+
+        const toolCallId = part.toolCallId;
+        if (!toolCallId) return null;
+
+        const input = part.input as GetUserLocationInput | undefined;
+        if (!input) return null;
+
+        const toolState = locationStates[toolCallId];
+
+        // If output is available, the tool has been responded to
+        if (part.state === "output-available") {
+            const output = part.output as { success: boolean; latitude?: number; longitude?: number; city?: string; error?: string } | undefined;
+
+            if (output?.success) {
+                return (
+                    <div key={partIndex} className="mt-1.5">
+                        <LocationRequest
+                            reason={input.reason}
+                            onLocationGranted={() => { }}
+                            onLocationDenied={() => { }}
+                            status="granted"
+                        />
+                    </div>
+                );
+            } else {
+                return (
+                    <div key={partIndex} className="mt-1.5">
+                        <LocationRequest
+                            reason={input.reason}
+                            onLocationGranted={() => { }}
+                            onLocationDenied={() => { }}
+                            status="denied"
+                        />
+                    </div>
+                );
+            }
+        }
+
+        // Tool is waiting for user input
+        if (part.state === "call" || part.state === "input-available") {
+            return (
+                <div key={partIndex} className="mt-1.5">
+                    <LocationRequest
+                        reason={input.reason}
+                        onLocationGranted={(coords) => handleLocationGranted(toolCallId, coords)}
+                        onLocationDenied={(error) => handleLocationDenied(toolCallId, error)}
+                        status={toolState?.status || "idle"}
+                    />
+                </div>
+            );
+        }
+
+        // Show loading state for partial-call
+        if (part.state === "partial-call") {
+            return (
+                <div key={partIndex} className="mt-3 text-sm text-muted-foreground">
+                    Preparing location request...
+                </div>
+            );
+        }
+
+        return null;
+    }
+
+    function renderHealthcareToolPart(part: ToolMessagePart, partIndex: number) {
+        if (part.type !== "tool-findNearbyHealthcare") {
+            return null;
+        }
+
+        // When output is available, render the healthcare facilities
+        if (part.state === "output-available" && part.output) {
+            const output = part.output as FindNearbyHealthcareOutput | undefined;
+            if (output) {
+                return (
+                    <div key={partIndex} className="mt-1.5">
+                        <NearbyHealthcare
+                            facilities={output.facilities || []}
+                            searchContext={output.searchContext}
+                            isLoading={false}
+                        />
+                    </div>
+                );
+            }
+        }
+
+        // Show loading state while tool is executing
+        if (part.state === "call" || part.state === "partial-call" || part.state === "streaming") {
+            return (
+                <div key={partIndex} className="mt-1.5">
+                    <NearbyHealthcare
+                        facilities={[]}
+                        isLoading={true}
+                    />
+                </div>
+            );
+        }
+
+        return null;
+    }
 
     function getMessageTimestamp(message: { metadata?: unknown }): Date {
         const metadata = message.metadata as ChatMessageMetadata | undefined;
@@ -340,8 +719,95 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
         return new Date();
     }
 
+    // Find any pending scheduleFollowUp tool calls that haven't been resolved
+    function findPendingFollowUpToolCalls(): Array<{ toolCallId: string; input: ScheduleFollowUpInput }> {
+        const pending: Array<{ toolCallId: string; input: ScheduleFollowUpInput }> = [];
+
+        for (const message of messages) {
+            if (message.role !== "assistant") continue;
+
+            for (const part of message.parts) {
+                const toolPart = part as ToolMessagePart;
+                if (
+                    toolPart.type === "tool-scheduleFollowUp" &&
+                    toolPart.toolCallId &&
+                    (toolPart.state === "call" || toolPart.state === "input-available") &&
+                    !followUpStates[toolPart.toolCallId]?.selectedOption
+                ) {
+                    pending.push({
+                        toolCallId: toolPart.toolCallId,
+                        input: toolPart.input as ScheduleFollowUpInput,
+                    });
+                }
+            }
+        }
+
+        return pending;
+    }
+
+    // Find any pending getUserLocation tool calls that haven't been resolved
+    function findPendingLocationToolCalls(): Array<{ toolCallId: string; input: GetUserLocationInput }> {
+        const pending: Array<{ toolCallId: string; input: GetUserLocationInput }> = [];
+
+        for (const message of messages) {
+            if (message.role !== "assistant") continue;
+
+            for (const part of message.parts) {
+                const toolPart = part as ToolMessagePart;
+                if (
+                    toolPart.type === "tool-getUserLocation" &&
+                    toolPart.toolCallId &&
+                    (toolPart.state === "call" || toolPart.state === "input-available")
+                ) {
+                    const toolCallId = toolPart.toolCallId;
+                    const currentStatus = locationStates[toolCallId]?.status;
+                    // Only include if status is undefined or idle (not yet responded)
+                    if (!currentStatus || currentStatus === "idle") {
+                        pending.push({
+                            toolCallId,
+                            input: toolPart.input as GetUserLocationInput,
+                        });
+                    }
+                }
+            }
+        }
+
+        return pending;
+    }
+
     function handleSubmit(message: PromptInputMessage) {
         if (!message.text.trim() && message.files.length === 0) return;
+
+        // Auto-resolve any pending follow-up tool calls before sending new message
+        const pendingFollowUpCalls = findPendingFollowUpToolCalls();
+        for (const { toolCallId, input } of pendingFollowUpCalls) {
+            addToolResult({
+                tool: "scheduleFollowUp",
+                toolCallId,
+                output: {
+                    selectedOption: "skipped",
+                    reason: input.reason,
+                    recommendedDate: input.recommendedDate,
+                    additionalNotes: input.additionalNotes,
+                    skippedByUser: true,
+                },
+            });
+        }
+
+        // Auto-resolve any pending location tool calls before sending new message
+        const pendingLocationCalls = findPendingLocationToolCalls();
+        for (const { toolCallId } of pendingLocationCalls) {
+            addToolResult({
+                tool: "getUserLocation",
+                toolCallId,
+                output: {
+                    success: false,
+                    error: "User continued conversation without sharing location",
+                    skippedByUser: true,
+                },
+            });
+        }
+
         sendMessage({
             text: message.text,
             files: message.files,
@@ -386,16 +852,13 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
 
                 <ScrollArea className="h-full -mr-4">
                     <ConversationContent className="pr-4 pt-8 pb-8">
-                        {!hasInitialMessages && (
-                            <Message from="assistant">
-                                <MessageContent>
-                                    <MessageResponse>
-                                        Hi! I'm Carely, your primary care assistant. What brings you in today?
-                                    </MessageResponse>
-                                </MessageContent>
-                            </Message>
-                        )}
                         {messages.map((message, index) => {
+                            // Skip hidden messages (e.g., system continuations for tool flows)
+                            const metadata = message.metadata as ChatMessageMetadata | undefined;
+                            if (metadata?.hidden) {
+                                return null;
+                            }
+
                             const files = getMessageFiles(message);
                             const text = getMessageText(message);
                             const isLastMessage = index === messages.length - 1;
@@ -408,9 +871,32 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
                                 message.role === "assistant" &&
                                 isLastMessage &&
                                 (status === "streaming" || status === "submitted");
+
+                            // Check if this message has any visible tool UI
+                            const hasVisibleToolUI = message.parts.some((part) => {
+                                const toolPart = part as ToolMessagePart;
+                                return (
+                                    toolPart.type === "tool-displayEmergencyHotlines" ||
+                                    toolPart.type === "tool-scheduleFollowUp" ||
+                                    toolPart.type === "tool-getUserLocation" ||
+                                    toolPart.type === "tool-findNearbyHealthcare"
+                                );
+                            });
+
+                            // Skip empty completed messages (no text, no files, no visible tool UI)
+                            const isEmptyCompletedMessage =
+                                !text &&
+                                files.length === 0 &&
+                                !hasVisibleToolUI &&
+                                !isAssistantStreaming;
+
+                            if (isEmptyCompletedMessage) {
+                                return null;
+                            }
+                            // Skip timestamp for the initial greeting message to avoid hydration issues
+                            const isInitialGreeting = message.id === "initial-assistant-message";
                             const showTimestamp =
-                                message.role === "user" || !isAssistantStreaming;
-                            console.log("message", JSON.stringify(message, null, 2));
+                                !isInitialGreeting && (message.role === "user" || !isAssistantStreaming);
                             return (
                                 <Message key={message.id} from={message.role}>
                                     {message.role === "user" && files.length > 0 && (
@@ -431,13 +917,25 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
                                             )}
                                         </MessageContent>
                                     ) : null}
-                                    {/* Render tool UI components only after message is complete */}
-                                    {!isAssistantStreaming && message.parts.map((part, partIndex) => {
-                                        console.log("tool part", part);
-                                        return renderEmergencyHotlineToolPart(
-                                            part as ToolMessagePart,
-                                            partIndex
-                                        );
+                                    {/* Render tool UI components */}
+                                    {message.parts.map((part, partIndex) => {
+                                        const toolPart = part as ToolMessagePart;
+                                        // For follow-up and location tools, render even while streaming since they need user input
+                                        if (toolPart.type === "tool-scheduleFollowUp") {
+                                            return renderFollowUpToolPart(toolPart, partIndex);
+                                        }
+                                        if (toolPart.type === "tool-getUserLocation") {
+                                            return renderLocationToolPart(toolPart, partIndex);
+                                        }
+                                        // For healthcare results, render during streaming to show loading state
+                                        if (toolPart.type === "tool-findNearbyHealthcare") {
+                                            return renderHealthcareToolPart(toolPart, partIndex);
+                                        }
+                                        // For other tools, only render after streaming is complete
+                                        if (!isAssistantStreaming) {
+                                            return renderEmergencyHotlineToolPart(toolPart, partIndex);
+                                        }
+                                        return null;
                                     })}
                                     {showTimestamp && (
                                         <MessageTimestamp

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { ModeToggle } from "@/components/ui/mode-toggle";
 import { UserMenu } from "@/components/user-menu";
 import { authClient, type ExtendedUser } from "@/server/better-auth/client";
@@ -17,6 +17,7 @@ type Visit = {
   id: string;
   createdAt: Date;
   publicId: string;
+  description: string | null;
 };
 
 type GroupedVisits = {
@@ -91,9 +92,48 @@ export default function AppointmentsPage() {
   const session = authClient.useSession();
   const router = useRouter();
   const [isCreatingAppointment, setIsCreatingAppointment] = useState(false);
-  const { data: visits, isLoading } = api.appointment.list.useQuery(undefined, {
-    enabled: !!session.data,
-  });
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = api.appointment.list.useInfiniteQuery(
+    {},
+    {
+      enabled: !!session.data,
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+    }
+  );
+
+  // Flatten all pages into a single array of visits
+  const visits = data?.pages.flatMap((page) => page.items) ?? [];
+
+  // Infinite scroll observer
+  const handleObserver = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      const [entry] = entries;
+      if (entry?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    },
+    [fetchNextPage, hasNextPage, isFetchingNextPage]
+  );
+
+  useEffect(() => {
+    const element = loadMoreRef.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(handleObserver, {
+      threshold: 0.1,
+      rootMargin: "100px",
+    });
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [handleObserver]);
 
   const createAppointment = api.appointment.create.useMutation({
     onSuccess: (data) => {
@@ -143,12 +183,14 @@ export default function AppointmentsPage() {
     return null;
   }
 
-  const groupedVisits = groupVisitsByTimePeriod(visits ?? []);
+  const groupedVisits = groupVisitsByTimePeriod(visits);
 
   return (
     <main className="flex flex-col min-h-screen w-full px-4 max-w-screen-md mx-auto">
       <div className="flex items-center py-4 justify-between w-full shrink-0">
-        <h1 className="text-3xl font-light">Carely</h1>
+        <Link href="/">
+          <h1 className="text-3xl font-light">Carely</h1>
+        </Link>
         <div className="flex items-center gap-2">
           <ModeToggle />
           {session.data ? (
@@ -209,7 +251,7 @@ export default function AppointmentsPage() {
                         className="hover:bg-accent/50 transition-colors cursor-pointer"
                       >
                         <CardHeader>
-                          <CardTitle>Appointment</CardTitle>
+                          <CardTitle>{visit.description ?? "Appointment"}</CardTitle>
                           <CardDescription>
                             {formatVisitDate(visit.createdAt)}
                           </CardDescription>
@@ -220,6 +262,11 @@ export default function AppointmentsPage() {
                 </div>
               </div>
             ))}
+
+            {/* Infinite scroll sentinel */}
+            <div ref={loadMoreRef} className="py-4 flex justify-center">
+              {isFetchingNextPage && <Spinner className="size-6" />}
+            </div>
           </div>
         )}
       </div>

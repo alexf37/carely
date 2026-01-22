@@ -1,0 +1,1 @@
+ALTER TABLE "carely_chat" ADD COLUMN "description" text;

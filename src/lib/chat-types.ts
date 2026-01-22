@@ -10,6 +10,10 @@ export const chatMessageMetadataSchema = z.object({
    * Timestamp when the message was created, stored as ISO string
    */
   timestamp: z.string().datetime(),
+  /**
+   * Whether this message should be hidden from the UI (e.g., system continuations)
+   */
+  hidden: z.boolean().optional(),
 });
 
 /**
@@ -26,8 +30,9 @@ export type ChatUIMessage = UIMessage<ChatMessageMetadata>;
 /**
  * Creates metadata with the current timestamp
  */
-export function createMessageMetadata(): ChatMessageMetadata {
+export function createMessageMetadata(options?: { hidden?: boolean }): ChatMessageMetadata {
   return {
     timestamp: new Date().toISOString(),
+    hidden: options?.hidden,
   };
 }

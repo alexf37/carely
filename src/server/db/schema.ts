@@ -23,6 +23,7 @@ export const chats = createTable("chat", (d) => ({
   userId: d.varchar({ length: 255 }).notNull().references(() => user.id),
   createdAt: d.timestamp().$defaultFn(() => new Date()).notNull(),
   content: d.jsonb("content").notNull().default({}),
+  description: d.text(),
 }));
 
 export const history = createTable("history", (d) => ({
