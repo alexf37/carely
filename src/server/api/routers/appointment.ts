@@ -318,4 +318,36 @@ export const appointmentRouter = createTRPCRouter({
 
       return { success: true, recordsCreated: contentStrings.length };
     }),
+
+  delete: protectedProcedure
+    .input(z.object({ publicId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // Find the chat by publicId
+      const chat = await ctx.db.query.chats.findFirst({
+        where: eq(chats.publicId, input.publicId),
+      });
+
+      if (!chat) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Appointment not found",
+        });
+      }
+
+      // Ensure the user owns this chat
+      if (chat.userId !== ctx.session.user.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have access to this appointment",
+        });
+      }
+
+      // Delete the visit first (it references the chat)
+      await ctx.db.delete(visits).where(eq(visits.chatId, chat.id));
+
+      // Then delete the chat
+      await ctx.db.delete(chats).where(eq(chats.id, chat.id));
+
+      return { success: true };
+    }),
 });

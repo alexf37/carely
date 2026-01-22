@@ -10,8 +10,19 @@ import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Calendar } from "lucide-react";
+import { Calendar, Trash2 } from "lucide-react";
 import { IconPlus } from "@tabler/icons-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { motion, AnimatePresence } from "framer-motion";
 
 type Visit = {
   id: string;
@@ -92,7 +103,10 @@ export default function AppointmentsPage() {
   const session = authClient.useSession();
   const router = useRouter();
   const [isCreatingAppointment, setIsCreatingAppointment] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] = useState<{ publicId: string; description: string | null } | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const utils = api.useUtils();
 
   const {
     data,
@@ -107,6 +121,45 @@ export default function AppointmentsPage() {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
     }
   );
+
+  const deleteAppointment = api.appointment.delete.useMutation({
+    onMutate: async ({ publicId }) => {
+      // Close dialog immediately
+      setDeleteDialogOpen(false);
+      setAppointmentToDelete(null);
+
+      // Cancel any outgoing refetches so they don't overwrite our optimistic update
+      await utils.appointment.list.cancel();
+
+      // Snapshot the previous value
+      const previousData = utils.appointment.list.getInfiniteData({});
+
+      // Optimistically remove the appointment from the cache
+      utils.appointment.list.setInfiniteData({}, (oldData) => {
+        if (!oldData) return oldData;
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page) => ({
+            ...page,
+            items: page.items.filter((item) => item.publicId !== publicId),
+          })),
+        };
+      });
+
+      // Return context with the previous data for rollback
+      return { previousData };
+    },
+    onError: (_err, _variables, context) => {
+      // Rollback to the previous value on error
+      if (context?.previousData) {
+        utils.appointment.list.setInfiniteData({}, context.previousData);
+      }
+    },
+    onSettled: () => {
+      // Sync with server after mutation completes (success or error)
+      void utils.appointment.list.invalidate();
+    },
+  });
 
   // Flatten all pages into a single array of visits
   const visits = data?.pages.flatMap((page) => page.items) ?? [];
@@ -160,6 +213,19 @@ export default function AppointmentsPage() {
     }
     setIsCreatingAppointment(true);
     createAppointment.mutate();
+  }
+
+  function handleDeleteClick(e: React.MouseEvent, visit: { publicId: string; description: string | null }) {
+    e.preventDefault();
+    e.stopPropagation();
+    setAppointmentToDelete(visit);
+    setDeleteDialogOpen(true);
+  }
+
+  function handleConfirmDelete() {
+    if (appointmentToDelete) {
+      deleteAppointment.mutate({ publicId: appointmentToDelete.publicId });
+    }
   }
 
   // Show loading state while checking session
@@ -216,60 +282,109 @@ export default function AppointmentsPage() {
           </Button>
         </div>
 
-        {groupedVisits.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Calendar className="size-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground text-lg">No appointments yet</p>
-            <p className="text-muted-foreground text-sm mt-1">
-              Start your first appointment
-            </p>
-            <Button className="mt-6" onClick={handleNewAppointment} disabled={isCreatingAppointment}>
-              {isCreatingAppointment ? (
-                <Spinner className="size-4" />
-              ) : (
-                <IconPlus className="size-4" />
-              )}
-              New Appointment
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-8">
-            {groupedVisits.map((group) => (
-              <div key={group.label}>
-                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                  {group.label}
-                </h3>
-                <div className="space-y-3">
-                  {group.visits.map((visit) => (
-                    <Link
-                      key={visit.id}
-                      href={`/appointment/${visit.publicId}`}
-                      className="block"
-                    >
-                      <Card
-                        size="sm"
-                        className="hover:bg-accent/50 transition-colors cursor-pointer"
-                      >
-                        <CardHeader>
-                          <CardTitle>{visit.description ?? "Appointment"}</CardTitle>
-                          <CardDescription>
-                            {formatVisitDate(visit.createdAt)}
-                          </CardDescription>
-                        </CardHeader>
-                      </Card>
-                    </Link>
-                  ))}
+        <AnimatePresence mode="popLayout">
+          {groupedVisits.length === 0 ? (
+            <motion.div
+              key="empty-state"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center justify-center py-16 text-center"
+            >
+              <Calendar className="size-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground text-lg">No appointments yet</p>
+              <p className="text-muted-foreground text-sm mt-1">
+                Start your first appointment
+              </p>
+              <Button className="mt-6" onClick={handleNewAppointment} disabled={isCreatingAppointment}>
+                {isCreatingAppointment ? (
+                  <Spinner className="size-4" />
+                ) : (
+                  <IconPlus className="size-4" />
+                )}
+                New Appointment
+              </Button>
+            </motion.div>
+          ) : (
+            <motion.div key="appointments-list" className="space-y-8">
+              {groupedVisits.map((group) => (
+                <div key={group.label}>
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
+                    {group.label}
+                  </h3>
+                  <div className="space-y-3">
+                    <AnimatePresence mode="popLayout">
+                      {group.visits.map((visit) => (
+                        <motion.div
+                          key={visit.id}
+                          layout
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <Link
+                            href={`/appointment/${visit.publicId}`}
+                            className="block"
+                          >
+                            <Card
+                              size="sm"
+                              className="hover:bg-accent/50 transition-colors cursor-pointer group"
+                            >
+                              <CardHeader className="flex flex-row items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <CardTitle>{visit.description ?? "Appointment"}</CardTitle>
+                                  <CardDescription>
+                                    {formatVisitDate(visit.createdAt)}
+                                  </CardDescription>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
+                                  onClick={(e) => handleDeleteClick(e, visit)}
+                                >
+                                  <Trash2 className="size-4" />
+                                </Button>
+                              </CardHeader>
+                            </Card>
+                          </Link>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
 
-            {/* Infinite scroll sentinel */}
-            <div ref={loadMoreRef} className="py-4 flex justify-center">
-              {isFetchingNextPage && <Spinner className="size-6" />}
-            </div>
-          </div>
-        )}
+              {/* Infinite scroll sentinel */}
+              <div ref={loadMoreRef} className="py-4 flex justify-center">
+                {isFetchingNextPage && <Spinner className="size-6" />}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete appointment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete &ldquo;{appointmentToDelete?.description ?? "Appointment"}&rdquo; and all its conversation history. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteAppointment.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={deleteAppointment.isPending}
+              className="bg-destructive text-primary-foreground hover:bg-destructive/90"
+            >
+              {deleteAppointment.isPending ? <Spinner className="size-4" /> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }
