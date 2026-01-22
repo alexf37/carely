@@ -44,15 +44,15 @@ const OPTIONS = [
 function generateICSFile(reason: string, recommendedDate: string, additionalNotes?: string): string {
   // Parse the recommended date - try to extract a reasonable date
   const eventDate = parseRecommendedDate(recommendedDate);
-  
+
   // Format dates for ICS (YYYYMMDD format for all-day events)
   const startDate = formatICSDate(eventDate);
   const endDate = formatICSDate(new Date(eventDate.getTime() + 24 * 60 * 60 * 1000)); // Next day for all-day event
-  
+
   const uid = `carely-followup-${Date.now()}@carely.app`;
   const now = formatICSDateTime(new Date());
-  
-  const description = additionalNotes 
+
+  const description = additionalNotes
     ? `Follow-up: ${reason}\\n\\nNotes: ${additionalNotes}`
     : `Follow-up: ${reason}`;
 
@@ -86,34 +86,34 @@ function generateICSFile(reason: string, recommendedDate: string, additionalNote
 function parseRecommendedDate(dateStr: string): Date {
   const now = new Date();
   const lowerStr = dateStr.toLowerCase();
-  
+
   // Handle relative dates like "in 3 days", "in a week"
   const inDaysMatch = lowerStr.match(/in (\d+) days?/);
   if (inDaysMatch) {
-    const days = parseInt(inDaysMatch[1], 10);
+    const days = parseInt(inDaysMatch[1] ?? "0", 10);
     return new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
   }
-  
+
   const inWeeksMatch = lowerStr.match(/in (\d+) weeks?/);
   if (inWeeksMatch) {
-    const weeks = parseInt(inWeeksMatch[1], 10);
+    const weeks = parseInt(inWeeksMatch[1] ?? "0", 10);
     return new Date(now.getTime() + weeks * 7 * 24 * 60 * 60 * 1000);
   }
-  
+
   if (lowerStr.includes("next week")) {
     return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   }
-  
+
   if (lowerStr.includes("tomorrow")) {
     return new Date(now.getTime() + 24 * 60 * 60 * 1000);
   }
-  
+
   // Try to parse as a date string
   const parsed = new Date(dateStr);
   if (!isNaN(parsed.getTime())) {
     return parsed;
   }
-  
+
   // Default to 3 days from now
   return new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 }
@@ -142,7 +142,7 @@ function downloadICSFile(reason: string, recommendedDate: string, additionalNote
   const icsContent = generateICSFile(reason, recommendedDate, additionalNotes);
   const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
   const url = URL.createObjectURL(blob);
-  
+
   const link = document.createElement("a");
   link.href = url;
   link.download = `carely-followup-${Date.now()}.ics`;
@@ -204,63 +204,63 @@ export function FollowUpOptions({
           )}
         </div>
 
-      <div className="p-2">
-        {isComplete ? (
-          <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
-            <CheckIcon className="size-4 text-green-500" />
-            <span>{getCompletionMessage()}</span>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-1">
-            {OPTIONS.map((option) => {
-              const Icon = option.icon;
-              const isSelected = selectedOption === option.id;
-              const isDisabled = (selectedOption && !isSelected) || isProcessing;
+        <div className="p-2">
+          {isComplete ? (
+            <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+              <CheckIcon className="size-4 text-green-500" />
+              <span>{getCompletionMessage()}</span>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {OPTIONS.map((option) => {
+                const Icon = option.icon;
+                const isSelected = selectedOption === option.id;
+                const isDisabled = (selectedOption && !isSelected) || isProcessing;
 
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => !isDisabled && handleSelect(option.id)}
-                  disabled={isDisabled}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-md text-left transition-all",
-                    "hover:bg-muted/50 active:scale-[0.99]",
-                    isSelected && "bg-primary/10 border border-primary/20",
-                    isDisabled && !isSelected && "opacity-40 cursor-not-allowed"
-                  )}
-                >
-                  <div
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => !isDisabled && handleSelect(option.id)}
+                    disabled={isDisabled}
                     className={cn(
-                      "flex items-center justify-center size-8 rounded-md transition-colors",
-                      isSelected
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground"
+                      "flex items-center gap-3 px-3 py-2.5 rounded-md text-left transition-all",
+                      "hover:bg-muted/50 active:scale-[0.99]",
+                      isSelected && "bg-primary/10 border border-primary/20",
+                      isDisabled && !isSelected && "opacity-40 cursor-not-allowed"
                     )}
                   >
-                    {isSelected && isProcessing ? (
-                      <Loader2Icon className="size-4 animate-spin" />
-                    ) : (
-                      <Icon className="size-4" />
+                    <div
+                      className={cn(
+                        "flex items-center justify-center size-8 rounded-md transition-colors",
+                        isSelected
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {isSelected && isProcessing ? (
+                        <Loader2Icon className="size-4 animate-spin" />
+                      ) : (
+                        <Icon className="size-4" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{option.label}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {option.description}
+                      </p>
+                    </div>
+                    {isSelected && !isProcessing && (
+                      <CheckIcon className="size-4 text-primary shrink-0" />
                     )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{option.label}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {option.description}
-                    </p>
-                  </div>
-                  {isSelected && !isProcessing && (
-                    <CheckIcon className="size-4 text-primary shrink-0" />
-                  )}
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
 
-          </div>
-        )}
-      </div>
-    </motion.div>
+            </div>
+          )}
+        </div>
+      </motion.div>
     </div>
   );
 }
