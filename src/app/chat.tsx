@@ -130,7 +130,7 @@ function ChatAttachment({ data, className }: ChatAttachmentProps) {
             );
         }
         if (isPdf && data.url) {
-            return <PdfThumbnail url={data.url} width={20} height={20} className="size-5 rounded-sm" />;
+            return <PdfThumbnail url={data.url} className="size-5 rounded-sm" />;
         }
         return <PaperclipIcon className="size-3" />;
     }
@@ -222,7 +222,7 @@ function SentMessageAttachment({ data, className }: SentMessageAttachmentProps) 
                 />
             ) : isPdf && data.url ? (
                 <div className="flex size-full items-center justify-center bg-muted">
-                    <PdfThumbnail url={data.url} width={96} height={96} className="size-full rounded-lg" />
+                    <PdfThumbnail url={data.url} className="size-full rounded-lg" />
                 </div>
             ) : (
                 <div className="flex size-full items-center justify-center bg-muted text-muted-foreground">

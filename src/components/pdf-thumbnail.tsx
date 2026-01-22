@@ -2,7 +2,8 @@
 
 import { cn } from "@/lib/utils";
 import { FileTextIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import type { PDFPageProxy } from "pdfjs-dist";
 
 // PDF.js is loaded dynamically to avoid SSR issues (uses browser-only APIs like DOMMatrix)
 async function getPdfjs() {
@@ -16,21 +17,47 @@ async function getPdfjs() {
 
 export type PdfThumbnailProps = {
     url: string;
-    width?: number;
-    height?: number;
     className?: string;
 };
 
-export function PdfThumbnail({ url, width = 20, height = 20, className }: PdfThumbnailProps) {
+export function PdfThumbnail({ url, className }: PdfThumbnailProps) {
+    const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const pageRef = useRef<PDFPageProxy | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(false);
 
+    const renderPage = useCallback(async function renderPage(page: PDFPageProxy, width: number, height: number) {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const context = canvas.getContext("2d");
+        if (!context) return;
+
+        // Calculate scale to fit the container size
+        const viewport = page.getViewport({ scale: 1 });
+        const dpr = window.devicePixelRatio || 1;
+        const scale = Math.min(width / viewport.width, height / viewport.height) * dpr;
+        const scaledViewport = page.getViewport({ scale });
+
+        // Set canvas buffer size (actual pixels)
+        canvas.width = scaledViewport.width;
+        canvas.height = scaledViewport.height;
+
+        await page.render({
+            canvasContext: context,
+            viewport: scaledViewport,
+        }).promise;
+
+        setIsLoading(false);
+    }, []);
+
+    // Load PDF and get the first page
     useEffect(() => {
         let cancelled = false;
 
-        async function renderPdf() {
-            if (!url || !canvasRef.current) return;
+        async function loadPdf() {
+            if (!url) return;
 
             try {
                 setIsLoading(true);
@@ -45,50 +72,68 @@ export function PdfThumbnail({ url, width = 20, height = 20, className }: PdfThu
                 const page = await pdf.getPage(1);
                 if (cancelled) return;
 
-                const canvas = canvasRef.current;
-                const context = canvas.getContext("2d");
-                if (!context) return;
+                pageRef.current = page;
 
-                // Calculate scale to fit the thumbnail size
-                const viewport = page.getViewport({ scale: 1 });
-                const scale = Math.min(width / viewport.width, height / viewport.height) * 2; // 2x for retina
-                const scaledViewport = page.getViewport({ scale });
-
-                canvas.width = scaledViewport.width;
-                canvas.height = scaledViewport.height;
-
-                await page.render({
-                    canvasContext: context,
-                    viewport: scaledViewport,
-                    canvas: canvas,
-                }).promise;
-
-                setIsLoading(false);
+                // Render with initial container size
+                const container = containerRef.current;
+                if (container) {
+                    const { width, height } = container.getBoundingClientRect();
+                    if (width > 0 && height > 0) {
+                        await renderPage(page, width, height);
+                    }
+                }
             } catch (err) {
                 if (!cancelled) {
-                    console.error("Failed to render PDF thumbnail:", err);
+                    console.error("Failed to load PDF:", err);
                     setError(true);
                     setIsLoading(false);
                 }
             }
         }
 
-        renderPdf();
+        loadPdf();
 
         return () => {
             cancelled = true;
+            pageRef.current = null;
         };
-    }, [url, width, height]);
+    }, [url, renderPage]);
+
+    // Re-render when container size changes
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const resizeObserver = new ResizeObserver((entries) => {
+            const entry = entries[0];
+            if (!entry || !pageRef.current) return;
+
+            const { width, height } = entry.contentRect;
+            if (width > 0 && height > 0) {
+                renderPage(pageRef.current, width, height);
+            }
+        });
+
+        resizeObserver.observe(container);
+
+        return () => {
+            resizeObserver.disconnect();
+        };
+    }, [renderPage]);
 
     if (error) {
         return <FileTextIcon className={cn("text-red-500", className)} />;
     }
 
     return (
-        <canvas
-            ref={canvasRef}
-            className={cn("object-cover", isLoading && "opacity-0", className)}
-            style={{ width, height }}
-        />
+        <div ref={containerRef} className={cn("relative", className)}>
+            <canvas
+                ref={canvasRef}
+                className={cn(
+                    "absolute inset-0 w-full h-full object-cover",
+                    isLoading && "opacity-0"
+                )}
+            />
+        </div>
     );
 }
