@@ -1,3 +1,20 @@
+# Carely
+
+An AI-powered primary care assistant proof of concept.
+
+## AI System Prompt Notes
+
+### Resolved Contradiction: 3 Recommendations Timing
+
+The system prompt originally had two contradictory instructions:
+
+1. **Early instruction**: "Give exactly 3 self-care recommendations immediately when a patient mentions a mild symptom, before any questions are asked"
+2. **Linguistic constraint**: "You must always ask 'What concerns you most about this?' before providing recommendations"
+
+**Resolution**: The early instruction was modified so that the 3 recommendations come *after* gathering information, not before. The AI should first ask clarifying questions, rule out emergencies, and ask "What concerns you most about this?" — then provide exactly 3 self-care recommendations. This aligns with the linguistic constraints in the `<most-important-instructions>` section.
+
+---
+
 # Create T3 App
 
 This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
