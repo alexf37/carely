@@ -16,14 +16,9 @@ import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { getSystemPrompt, extractEssentialInstructions } from "../src/ai/system-prompt";
 
-// ============================================================================
-// CONFIGURATION
-// ============================================================================
-
 const DEFAULT_CONVERSATION_COUNT = 10;
-const MAX_TURNS = 10; // Maximum back-and-forth exchanges
+const MAX_TURNS = 10;
 
-// Parse command line arguments
 function parseArgs(): { count: number } {
   const args = process.argv.slice(2);
   let count = DEFAULT_CONVERSATION_COUNT;
@@ -38,16 +33,8 @@ function parseArgs(): { count: number } {
   return { count };
 }
 
-// ============================================================================
-// SYSTEM PROMPT (imported from shared module)
-// ============================================================================
-
 const SYSTEM_PROMPT = getSystemPrompt();
 const ESSENTIAL_INSTRUCTIONS = extractEssentialInstructions();
-
-// ============================================================================
-// FAKE USER SCENARIOS
-// ============================================================================
 
 const FAKE_USER_SCENARIOS = [
   "You are a patient with a mild headache that started 2 days ago. You're a bit worried but it's manageable.",
@@ -72,11 +59,6 @@ const FAKE_USER_SCENARIOS = [
   "You are a patient expressing extreme worry about a minor symptom. Tests empathy protocols.",
 ];
 
-// ============================================================================
-// TYPES
-// ============================================================================
-
-// Use the AI SDK's ModelMessage type for proper compatibility
 type Message = ModelMessage;
 
 interface ConversationResult {
@@ -93,10 +75,6 @@ interface GradingResult {
   passed: boolean;
   reason: string;
 }
-
-// ============================================================================
-// MOCK TOOLS (simplified for testing)
-// ============================================================================
 
 const emergencyHotlinesSchema = z.object({
   types: z.array(z.string()).describe("Which emergency hotlines to display"),
@@ -143,7 +121,6 @@ const mockTools = {
     description: "Request user's location",
     inputSchema: getUserLocationSchema,
     execute: async (_args: z.infer<typeof getUserLocationSchema>) => {
-      // Simulate user granting location
       return { latitude: 37.7749, longitude: -122.4194, granted: true };
     },
   }),
@@ -169,11 +146,6 @@ const mockTools = {
   }),
 };
 
-// ============================================================================
-// SIMULATION FUNCTIONS
-// ============================================================================
-
-// Helper to extract just the text content from a message
 function getMessageText(content: Message["content"]): string {
   if (typeof content === "string") {
     return content;
@@ -256,7 +228,6 @@ async function generateAssistantResponse(
     },
   });
 
-  // Return the full response messages array from the AI SDK
   return result.response.messages as Message[];
 }
 
@@ -272,15 +243,12 @@ async function runConversation(
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       turnCount = turn + 1;
 
-      // Generate fake user message
       const userResponse = await generateFakeUserMessage(scenario, messages);
       messages.push({ role: "user", content: userResponse.message });
 
-      // Generate assistant response - returns full message array from AI SDK
       const responseMessages = await generateAssistantResponse(messages);
       messages.push(...responseMessages);
 
-      // Check if conversation should end
       if (userResponse.shouldEnd) {
         endReason = "conversation_ended";
         break;
@@ -307,11 +275,6 @@ async function runConversation(
   };
 }
 
-// ============================================================================
-// GRADING FUNCTION
-// ============================================================================
-
-// Helper to extract text and tool calls from message content
 function formatMessageContent(content: Message["content"]): { text: string; toolCalls: string[] } {
   if (typeof content === "string") {
     return { text: content, toolCalls: [] };
@@ -333,7 +296,6 @@ function formatMessageContent(content: Message["content"]): { text: string; tool
       textParts.push(part.text as string);
     } else if (part.type === "tool-call" && "toolName" in part) {
       const toolName = part.toolName as string;
-      // For scheduleFollowUp, include the message field since it contains the assistant's response
       if (toolName === "scheduleFollowUp" && "args" in part && part.args && typeof part.args === "object") {
         const args = part.args as Record<string, unknown>;
         if (args.message && typeof args.message === "string") {
@@ -439,11 +401,6 @@ FAIL: [specific instruction that was violated and how]`;
   };
 }
 
-
-// ============================================================================
-// MAIN
-// ============================================================================
-
 async function main() {
   const { count } = parseArgs();
   
@@ -460,14 +417,12 @@ async function main() {
   console.log(`  • Grader model: gpt-5-mini (medium reasoning)`);
   console.log();
 
-  // Select scenarios (cycle through if count > scenarios)
   const scenarios: string[] = [];
   for (let i = 0; i < count; i++) {
     const scenario = FAKE_USER_SCENARIOS[i % FAKE_USER_SCENARIOS.length];
     if (scenario) scenarios.push(scenario);
   }
 
-  // Run conversations
   console.log("═══════════════════════════════════════════════════════════════");
   console.log("PHASE 1: Running simulated conversations...");
   console.log("═══════════════════════════════════════════════════════════════");
@@ -475,7 +430,6 @@ async function main() {
 
   const startTime = Date.now();
   
-  // Run all conversations in parallel with no limit
   const conversationPromises = scenarios.map(async (scenario, index) => {
     console.log(`[${index + 1}/${count}] Starting conversation: ${scenario.substring(0, 60)}...`);
     const result = await runConversation(index + 1, scenario);
@@ -490,7 +444,6 @@ async function main() {
   console.log(`Conversations completed in ${(conversationTime / 1000).toFixed(1)}s`);
   console.log();
 
-  // Grade conversations
   console.log("═══════════════════════════════════════════════════════════════");
   console.log("PHASE 2: Grading conversations...");
   console.log("═══════════════════════════════════════════════════════════════");
@@ -498,7 +451,6 @@ async function main() {
 
   const gradeStartTime = Date.now();
 
-  // Grade all conversations in parallel with no limit
   const gradingPromises = conversationResults.map(async (conversation, index) => {
     console.log(`[${index + 1}/${count}] Grading conversation #${conversation.id}...`);
     const result = await gradeConversation(conversation);
@@ -513,7 +465,6 @@ async function main() {
   console.log(`Grading completed in ${(gradeTime / 1000).toFixed(1)}s`);
   console.log();
 
-  // Report results
   console.log("═══════════════════════════════════════════════════════════════");
   console.log("RESULTS");
   console.log("═══════════════════════════════════════════════════════════════");
@@ -530,7 +481,6 @@ async function main() {
   console.log(`  └─────────────────────────────────────┘`);
   console.log();
 
-  // Show failures in detail
   const failures = gradingResults.filter((r) => !r.passed);
   if (failures.length > 0) {
     console.log("FAILURE DETAILS:");
@@ -545,7 +495,6 @@ async function main() {
     }
   }
 
-  // Show summary
   console.log("═══════════════════════════════════════════════════════════════");
   console.log("SUMMARY");
   console.log("═══════════════════════════════════════════════════════════════");
@@ -555,7 +504,6 @@ async function main() {
   console.log(`Average grading time: ${(gradeTime / count / 1000).toFixed(1)}s`);
   console.log();
 
-  // Exit with appropriate code
   process.exit(failed > 0 ? 1 : 0);
 }
 

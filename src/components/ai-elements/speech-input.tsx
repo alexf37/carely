@@ -42,16 +42,13 @@ export function SpeechInput({
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
     analyser.getByteFrequencyData(dataArray);
 
-    // Calculate overall volume - more sensitive scaling
     const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-    const normalizedVolume = Math.min((average / 64) ** 0.7, 1); // More sensitive: lower divisor + power curve
+    const normalizedVolume = Math.min((average / 64) ** 0.7, 1);
 
-    // Create varied bar heights based on volume with some randomness for visual interest
     setVolumes((prev) =>
       prev.map((_, i) => {
         const variance = 0.5 + Math.random() * 0.5;
         const baseHeight = normalizedVolume * variance;
-        // Add slight wave pattern
         const wave = Math.sin(Date.now() / 150 + i * 0.8) * 0.1;
         return Math.max(0.15, Math.min(1, baseHeight + wave + 0.2));
       })
@@ -65,7 +62,6 @@ export function SpeechInput({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // Set up audio analysis
       const audioContext = new AudioContext();
       const analyser = audioContext.createAnalyser();
       const source = audioContext.createMediaStreamSource(stream);
@@ -76,7 +72,6 @@ export function SpeechInput({
       audioContextRef.current = audioContext;
       analyserRef.current = analyser;
 
-      // Start volume visualization
       updateVolumes();
 
       const mediaRecorder = new MediaRecorder(stream, {
@@ -94,7 +89,6 @@ export function SpeechInput({
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
 
-        // Stop all tracks to release the microphone
         for (const track of stream.getTracks()) {
           track.stop();
         }
@@ -124,26 +118,22 @@ export function SpeechInput({
   }, [onAudioRecorded, onTranscriptionChange, updateVolumes]);
 
   const stopRecording = useCallback(() => {
-    // Cancel animation frame
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
 
-    // Close audio context
     if (audioContextRef.current) {
       audioContextRef.current.close();
       audioContextRef.current = null;
       analyserRef.current = null;
     }
 
-    // Stop media recorder
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
 
-    // Reset volumes
     setVolumes(Array(WAVEFORM_BARS).fill(0.1));
   }, [isRecording]);
 
@@ -155,7 +145,6 @@ export function SpeechInput({
     }
   }, [isRecording, startRecording, stopRecording]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (animationFrameRef.current) {
@@ -180,8 +169,7 @@ export function SpeechInput({
       ? "border border-border bg-background hover:bg-muted dark:bg-input/30 dark:border-input dark:hover:bg-input/50 shadow-xs"
       : "hover:bg-muted dark:hover:bg-muted/50";
 
-  // Calculate expanded width based on content: waveform (6 bars * 4px + 5 gaps * 2px) + gap + stop button + padding
-  const expandedWidth = 6 * 4 + 5 * 2 + 6 + 20 + 16; // ~76px
+  const expandedWidth = 6 * 4 + 5 * 2 + 6 + 20 + 16;
   const collapsedWidth = size === "icon-sm" ? 32 : 36;
 
   return (

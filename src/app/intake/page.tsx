@@ -576,10 +576,8 @@ function LifestyleQuestionsTable({
 }
 
 function formatDateInput(value: string): string {
-  // Remove all non-digits
   const digits = value.replace(/\D/g, "");
 
-  // Format as MM/DD/YYYY with slashes appearing after complete sections
   if (digits.length < 2) {
     return digits;
   } else if (digits.length === 2) {
@@ -594,7 +592,6 @@ function formatDateInput(value: string): string {
 }
 
 function validateDateOfBirth(value: string): string | null {
-  // Check if the format is complete (MM/DD/YYYY)
   const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
   const match = value.match(dateRegex);
 
@@ -606,18 +603,15 @@ function validateDateOfBirth(value: string): string | null {
   const day = parseInt(match[2]!, 10);
   const year = parseInt(match[3]!, 10);
 
-  // Validate month
   if (month < 1 || month > 12) {
     return "Please enter a valid month (01-12)";
   }
 
-  // Validate day
   const daysInMonth = new Date(year, month, 0).getDate();
   if (day < 1 || day > daysInMonth) {
     return `Please enter a valid day (01-${daysInMonth}) for this month`;
   }
 
-  // Create date and check if it's not in the future
   const inputDate = new Date(year, month - 1, day);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -626,7 +620,6 @@ function validateDateOfBirth(value: string): string | null {
     return "Date of birth cannot be in the future";
   }
 
-  // Check for reasonable age (e.g., not more than 150 years old)
   const minYear = today.getFullYear() - 150;
   if (year < minYear) {
     return "Please enter a valid year";
@@ -672,10 +665,8 @@ export default function IntakePage() {
   const currentValue = isCustomStep ? "" : (formData[currentStepData.id as "dateOfBirth" | "allergies"] as string);
 
   function handleInputChange(value: string) {
-    // Clear validation error when user starts typing
     setValidationError(null);
 
-    // Auto-format date of birth input
     if (currentStepData.id === "dateOfBirth") {
       value = formatDateInput(value);
     }
@@ -689,7 +680,6 @@ export default function IntakePage() {
   function handleDateKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Backspace" && currentStepData.id === "dateOfBirth") {
       const value = currentValue;
-      // If the last character is a slash, delete both the slash and the digit before it
       if (value.endsWith("/")) {
         e.preventDefault();
         const newValue = value.slice(0, -2); // Remove slash and preceding digit
@@ -706,7 +696,6 @@ export default function IntakePage() {
       return;
     }
 
-    // Validate date of birth before proceeding
     if (currentStepData.id === "dateOfBirth" && currentValue) {
       const error = validateDateOfBirth(currentValue);
       if (error) {
@@ -743,7 +732,6 @@ export default function IntakePage() {
 
     setIsSubmitting(true);
     try {
-      // Submit intake data and store in history table
       await submitIntake.mutateAsync({
         dateOfBirth: formData.dateOfBirth,
         sexAssignedAtBirth: formData.sexAssignedAtBirth,
@@ -755,13 +743,10 @@ export default function IntakePage() {
         lifestyleAnswers: formData.lifestyleAnswers,
       });
 
-      // Refetch the session to update hasCompletedIntake on the client
       await session.refetch();
 
-      // Create a new appointment
       const { publicId } = await createAppointment.mutateAsync();
 
-      // Redirect to the appointment page
       router.push(`/appointment/${publicId}`);
     } catch (error) {
       console.error("Failed to complete intake:", error);
@@ -769,7 +754,6 @@ export default function IntakePage() {
     }
   }
 
-  // Redirect to home if not logged in
   if (!session.isPending && !session.data) {
     router.push("/");
     return null;
