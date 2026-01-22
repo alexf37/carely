@@ -17,7 +17,6 @@ export default async function AppointmentPage({ params }: PageProps) {
     redirect("/");
   }
 
-  // Check if user has completed intake
   const userData = await db.query.user.findFirst({
     where: eq(user.id, session.user.id),
     columns: { hasCompletedIntake: true },
@@ -27,7 +26,6 @@ export default async function AppointmentPage({ params }: PageProps) {
     redirect("/intake");
   }
 
-  // Validate UUID format
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuidRegex.test(publicId)) {
     notFound();
@@ -41,7 +39,6 @@ export default async function AppointmentPage({ params }: PageProps) {
     notFound();
   }
 
-  // Verify ownership
   if (chat.userId !== session.user.id) {
     notFound();
   }

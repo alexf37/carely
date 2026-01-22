@@ -18,7 +18,7 @@ type FollowUpEmailProps = {
   appointmentId?: string;
 };
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://carely.app";
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://carely.alexfoster.dev";
 
 export function FollowUpEmail({
   patientName,
@@ -35,30 +35,30 @@ export function FollowUpEmail({
       <Body style={main}>
         <Container style={container}>
           <Heading style={heading}>Follow-Up Reminder</Heading>
-          
+
           <Text style={greeting}>Hi {patientName},</Text>
-          
+
           <Text style={paragraph}>
             This is a reminder about your follow-up care from your recent visit with Carely.
           </Text>
-          
+
           <Section style={infoSection}>
             <Text style={label}>Reason for Follow-Up</Text>
             <Text style={value}>{followUpReason}</Text>
           </Section>
-          
+
           <Section style={infoSection}>
             <Text style={label}>Recommended Date</Text>
             <Text style={value}>{followUpDate}</Text>
           </Section>
-          
+
           {additionalNotes && (
             <Section style={infoSection}>
               <Text style={label}>Additional Notes</Text>
               <Text style={value}>{additionalNotes}</Text>
             </Section>
           )}
-          
+
           {appointmentUrl && (
             <Section style={buttonSection}>
               <Link href={appointmentUrl} style={button}>
@@ -66,15 +66,15 @@ export function FollowUpEmail({
               </Link>
             </Section>
           )}
-          
+
           <Text style={paragraph}>
             If you have any questions or need to discuss your care further, please don't hesitate to continue your conversation with Carely.
           </Text>
-          
+
           <Text style={footer}>
             — Carely, Your Primary Care Assistant
           </Text>
-          
+
           <Text style={disclaimer}>
             This is an automated reminder. The information provided by Carely is for informational purposes only and should not replace professional medical advice, diagnosis, or treatment.
           </Text>

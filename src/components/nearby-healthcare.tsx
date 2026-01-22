@@ -12,8 +12,11 @@ type NearbyHealthcareProps = {
 };
 
 function openGoogleSearch(facility: HealthcareFacility) {
+  if (!facility.name || !facility.city) {
+    return;
+  }
   const searchQuery = encodeURIComponent(`${facility.name} ${facility.city}`);
-  window.open(`https://www.google.com/search?q=${searchQuery}`, "_blank");
+  window.open(`https://www.google.com/search?q=${searchQuery}`, "_blank", "noopener,noreferrer");
 }
 
 function FacilityCard({ facility }: { facility: HealthcareFacility }) {

@@ -42,14 +42,12 @@ const OPTIONS = [
  * Generate an .ics calendar file content
  */
 function generateICSFile(reason: string, recommendedDate: string, additionalNotes?: string): string {
-  // Parse the recommended date - try to extract a reasonable date
   const eventDate = parseRecommendedDate(recommendedDate);
 
-  // Format dates for ICS (YYYYMMDD format for all-day events)
   const startDate = formatICSDate(eventDate);
-  const endDate = formatICSDate(new Date(eventDate.getTime() + 24 * 60 * 60 * 1000)); // Next day for all-day event
+  const endDate = formatICSDate(new Date(eventDate.getTime() + 24 * 60 * 60 * 1000));
 
-  const uid = `carely-followup-${Date.now()}@carely.app`;
+  const uid = `carely-followup-${Date.now()}@carely.alexfoster.dev`;
   const now = formatICSDateTime(new Date());
 
   const description = additionalNotes
@@ -73,7 +71,7 @@ function generateICSFile(reason: string, recommendedDate: string, additionalNote
     "BEGIN:VALARM",
     "ACTION:DISPLAY",
     "DESCRIPTION:Carely Follow-up Reminder",
-    "TRIGGER:-PT9H", // Reminder at 9am on the day
+    "TRIGGER:-PT9H",
     "END:VALARM",
     "END:VEVENT",
     "END:VCALENDAR",
@@ -87,7 +85,6 @@ function parseRecommendedDate(dateStr: string): Date {
   const now = new Date();
   const lowerStr = dateStr.toLowerCase();
 
-  // Handle relative dates like "in 3 days", "in a week"
   const inDaysMatch = lowerStr.match(/in (\d+) days?/);
   if (inDaysMatch) {
     const days = parseInt(inDaysMatch[1] ?? "0", 10);
@@ -108,13 +105,11 @@ function parseRecommendedDate(dateStr: string): Date {
     return new Date(now.getTime() + 24 * 60 * 60 * 1000);
   }
 
-  // Try to parse as a date string
   const parsed = new Date(dateStr);
   if (!isNaN(parsed.getTime())) {
     return parsed;
   }
 
-  // Default to 3 days from now
   return new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 }
 
@@ -163,7 +158,6 @@ export function FollowUpOptions({
   isComplete,
 }: FollowUpOptionsProps) {
   function handleSelect(option: FollowUpOption) {
-    // For calendar option, trigger the download before notifying parent
     if (option === "calendar") {
       downloadICSFile(reason, recommendedDate, additionalNotes);
     }

@@ -38,8 +38,6 @@ export const emergencyHotlinesTool = createTool({
   },
 });
 
-// Client-side tool - no execute function
-// This will show UI options and wait for user selection via addToolResult
 export const scheduleFollowUpTool = createTool({
   description:
     "Present follow-up options to the patient when a follow-up is recommended. Use this tool after discussing a condition that requires follow-up care. The patient will be presented with options to: add to calendar, receive an email now, or receive an email reminder at the follow-up date. IMPORTANT: Since tool calls are generated before text content, you MUST include what you want to say to the patient in the 'message' parameter. This message will be displayed above the follow-up options.",
@@ -58,10 +56,8 @@ export const scheduleFollowUpTool = createTool({
       .optional()
       .describe("Any additional notes or instructions for the patient"),
   }),
-  // No execute function - this is a client-side tool that waits for user input
 });
 
-// Server-side tool - sends email immediately
 export const sendFollowUpEmailNowTool = createTool({
   description:
     "Send a follow-up reminder email to the patient immediately. Only call this tool after the patient has selected the 'email now' option from scheduleFollowUp.",
@@ -91,7 +87,6 @@ export const sendFollowUpEmailNowTool = createTool({
   },
 });
 
-// Server-side tool - schedules email for the follow-up date using Vercel Workflow
 export const scheduleFollowUpEmailTool = createTool({
   description:
     "Schedule a follow-up reminder email to be sent to the patient at the time of the follow-up. Only call this tool after the patient has selected the 'email at follow-up time' option from scheduleFollowUp.",
@@ -123,8 +118,6 @@ export const scheduleFollowUpEmailTool = createTool({
   },
 });
 
-// Client-side tool - requests user's location via browser Geolocation API
-// This handles the browser permission flow and returns coordinates or an error
 export const getUserLocationTool = createTool({
   description:
     "Request the user's current location using their browser's geolocation. This is a client-side tool that will prompt the user for location permission. Use this BEFORE calling findNearbyHealthcare when you need to find nearby clinics, specialists, or hospitals. If the user denies permission, you should acknowledge this and offer alternatives like asking them to share their city/zip code.",
@@ -133,12 +126,8 @@ export const getUserLocationTool = createTool({
       .string()
       .describe("A brief explanation of why location is needed, shown to the user (e.g., 'to find urgent care clinics near you')"),
   }),
-  // No execute function - this is a client-side tool
 });
 
-// Schema for healthcare facility results
-// Note: Using .nullable() instead of .optional() because OpenAI's structured output
-// requires all properties to be in the 'required' array
 const healthcareFacilitySchema = z.object({
   name: z.string().describe("Name of the healthcare facility"),
   type: z.string().describe("Type of facility (e.g., 'Urgent Care', 'Hospital', 'Clinic', 'Pharmacy')"),
@@ -152,7 +141,6 @@ const healthcareFacilitySchema = z.object({
 
 export type HealthcareFacility = z.infer<typeof healthcareFacilitySchema>;
 
-// Server-side tool - searches for nearby healthcare using OpenAI web search
 export const findNearbyHealthcareTool = createTool({
   description:
     "Search for nearby healthcare facilities (clinics, hospitals, specialists, pharmacies, etc.) based on the user's location. Only call this tool AFTER successfully obtaining the user's location via getUserLocation. If getUserLocation returned an error or denied permission, do NOT call this tool - instead ask the user for their city/zip code. Do not call this tool if the user has not granted permission to access their location. When you call this tool, don't list the things that you listed in this tool call in your message. They will already be shown to the user in some custom UI, so you don't need to repeat it.",
@@ -170,7 +158,6 @@ export const findNearbyHealthcareTool = createTool({
   }),
   execute: async function ({ latitude, longitude, city, searchQuery, additionalContext }) {
     try {
-      // Construct a search query with location context
       const locationContext = city 
         ? `near ${city}` 
         : `near coordinates ${latitude}, ${longitude}`;
@@ -181,7 +168,6 @@ export const findNearbyHealthcareTool = createTool({
 
       console.log("[findNearbyHealthcare] Searching for:", fullSearchQuery);
 
-      // Step 1: Use Exa to search for healthcare facilities
       const exa = new Exa(process.env.EXA_API_KEY);
       const searchResult = await exa.searchAndContents(fullSearchQuery, {
         text: true,
@@ -191,12 +177,10 @@ export const findNearbyHealthcareTool = createTool({
 
       console.log("[findNearbyHealthcare] Exa search result:", searchResult.results.length, "results");
 
-      // Combine search results into text for extraction
       const searchText = searchResult.results
         .map((r) => `${r.title}\n${r.url}\n${r.text || ""}`)
         .join("\n\n---\n\n");
 
-      // Step 2: Extract structured data from the search results using structured outputs
       const extractionResult = await generateText({
         model: openai("gpt-5-nano"),
         providerOptions: {
@@ -235,7 +219,6 @@ export const findNearbyHealthcareTool = createTool({
   },
 });
 
-// Schema for the LLM response when analyzing history facts
 const historyAnalysisSchema = z.object({
   contradictedPrimaryKeys: z
     .array(z.string())
@@ -274,7 +257,6 @@ export async function addFactsToHistory(
 ): Promise<AddFactsToHistoryResult> {
   const { facts, userId, documentId } = options;
   try {
-    // Step 1: Fetch all current history for this patient
     const existingHistory = await db.query.history.findMany({
       where: eq(history.userId, userId),
     });
@@ -282,7 +264,6 @@ export async function addFactsToHistory(
     console.log("[addFactsToHistory] Existing history entries:", existingHistory.length);
     console.log("[addFactsToHistory] New facts to evaluate:", facts.length);
 
-    // Step 2: Build the prompt for the LLM to analyze contradictions and redundancy
     const existingHistoryText =
       existingHistory.length > 0
         ? existingHistory
@@ -315,7 +296,6 @@ Your task:
 
 Return your analysis.`;
 
-    // Step 3: Call LLM to analyze
     const analysisResult = await generateText({
       model: openai("gpt-5-mini"),
       providerOptions: {
@@ -337,7 +317,6 @@ Return your analysis.`;
 
     console.log("[addFactsToHistory] Analysis result:", analysis);
 
-    // Step 4: Delete contradicted old facts
     if (analysis.contradictedPrimaryKeys.length > 0) {
       await db
         .delete(history)
@@ -348,7 +327,6 @@ Return your analysis.`;
       );
     }
 
-    // Step 5: Add non-redundant new facts
     const redundantIndices = new Set(analysis.redundantNewFactIndices);
     const factsToAdd = facts.filter((_, index) => !redundantIndices.has(index));
 

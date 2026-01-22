@@ -124,17 +124,13 @@ export default function AppointmentsPage() {
 
   const deleteAppointment = api.appointment.delete.useMutation({
     onMutate: async ({ publicId }) => {
-      // Close dialog immediately
       setDeleteDialogOpen(false);
       setAppointmentToDelete(null);
 
-      // Cancel any outgoing refetches so they don't overwrite our optimistic update
       await utils.appointment.list.cancel();
 
-      // Snapshot the previous value
       const previousData = utils.appointment.list.getInfiniteData({});
 
-      // Optimistically remove the appointment from the cache
       utils.appointment.list.setInfiniteData({}, (oldData) => {
         if (!oldData) return oldData;
         return {
@@ -146,25 +142,20 @@ export default function AppointmentsPage() {
         };
       });
 
-      // Return context with the previous data for rollback
       return { previousData };
     },
     onError: (_err, _variables, context) => {
-      // Rollback to the previous value on error
       if (context?.previousData) {
         utils.appointment.list.setInfiniteData({}, context.previousData);
       }
     },
     onSettled: () => {
-      // Sync with server after mutation completes (success or error)
       void utils.appointment.list.invalidate();
     },
   });
 
-  // Flatten all pages into a single array of visits
   const visits = data?.pages.flatMap((page) => page.items) ?? [];
 
-  // Infinite scroll observer
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
       const [entry] = entries;
@@ -197,7 +188,6 @@ export default function AppointmentsPage() {
     },
   });
 
-  // Redirect to intake if logged in but hasn't completed intake
   useEffect(() => {
     const user = session.data?.user as ExtendedUser | undefined;
     if (user && !user.hasCompletedIntake) {
@@ -228,7 +218,6 @@ export default function AppointmentsPage() {
     }
   }
 
-  // Show loading state while checking session
   if (session.isPending || isLoading) {
     return (
       <main className="flex flex-col h-screen items-center justify-center w-full px-4 max-w-screen-md mx-auto">
@@ -237,13 +226,11 @@ export default function AppointmentsPage() {
     );
   }
 
-  // Redirect to home if not logged in
   if (!session.data) {
     router.push("/");
     return null;
   }
 
-  // Don't render if intake not completed (will redirect)
   const currentUser = session.data.user as ExtendedUser;
   if (!currentUser.hasCompletedIntake) {
     return null;

@@ -7,7 +7,6 @@ export default async function Home() {
   const session = await getSession();
   const user = session?.user as { hasCompletedIntake?: boolean; name?: string } | undefined;
 
-  // Server-side redirect: logged in but hasn't completed intake
   if (user && !user.hasCompletedIntake) {
     redirect("/intake");
   }

@@ -9,6 +9,27 @@ import { addFactsToHistory } from "@/ai/tools";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
+function isPdfSignature(arrayBuffer: ArrayBuffer): boolean {
+  const bytes = new Uint8Array(arrayBuffer.slice(0, 5));
+  return (
+    bytes.length === 5 &&
+    bytes[0] === 0x25 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x44 &&
+    bytes[3] === 0x46 &&
+    bytes[4] === 0x2d
+  );
+}
+
+async function deleteBlobIfExists(url: string | null) {
+  if (!url) return;
+  try {
+    await del(url);
+  } catch (error) {
+    console.error("Failed to delete blob during cleanup:", error);
+  }
+}
+
 async function validateMedicalDocument(url: string): Promise<{ isValid: boolean; reason?: string }> {
   try {
     const result = await generateText({
@@ -58,19 +79,17 @@ Respond with ONLY a JSON object in this exact format:
     });
 
     const text = result.text.trim();
-    // Extract JSON from the response (handle potential markdown code blocks)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       console.error("Failed to parse LLM response:", text);
-      return { isValid: true }; // Default to valid if parsing fails
+      return { isValid: false, reason: "Invalid validation response" };
     }
 
     const parsed = JSON.parse(jsonMatch[0]) as { isMedical: boolean; reason?: string };
     return { isValid: parsed.isMedical, reason: parsed.reason };
   } catch (error) {
     console.error("Failed to validate medical document:", error);
-    // Default to valid if validation fails to avoid blocking legitimate uploads
-    return { isValid: true };
+    return { isValid: false, reason: "Validation error" };
   }
 }
 
@@ -149,7 +168,6 @@ If no permanent medical facts can be extracted about "${patientName}", return an
     return facts;
   } catch (error) {
     console.error("[extractMedicalFacts] Error:", error);
-    // Return empty array if extraction fails - don't block the upload
     return [];
   }
 }
@@ -170,7 +188,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
   }
 
-  // Validate file type - only allow PDFs
   if (file.type !== "application/pdf") {
     return NextResponse.json(
       { error: "Only PDF files are allowed" },
@@ -178,7 +195,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  // Validate file size (max 10MB)
   const MAX_SIZE = 10 * 1024 * 1024;
   if (file.size > MAX_SIZE) {
     return NextResponse.json(
@@ -187,54 +203,78 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  // Upload to Vercel Blob first (we need the URL for LLM validation)
-  const blob = await put(file.name, file, {
-    access: "public",
-    addRandomSuffix: true,
-  });
-
-  // Validate that the document is medical-related
-  const validation = await validateMedicalDocument(blob.url);
-  
-  if (!validation.isValid) {
-    // Delete the uploaded blob since it's not a valid medical document
-    await del(blob.url);
-    
+  const fileBuffer = await file.arrayBuffer();
+  if (!isPdfSignature(fileBuffer)) {
     return NextResponse.json(
-      { error: "Only medical documents are allowed" },
+      { error: "Invalid PDF file signature" },
       { status: 400 }
     );
   }
 
-  // Save document reference to database and get the ID
-  const [insertedDocument] = await db.insert(documents).values({
-    userId: session.user.id,
-    url: blob.url,
-    filename: file.name,
-  }).returning({ id: documents.id });
+  let blobUrl: string | null = null;
+  let documentCreated = false;
 
-  // Get patient name for fact extraction
-  const patientRecord = await db.query.user.findFirst({
-    where: eq(user.id, session.user.id),
-    columns: { name: true },
-  });
-
-  const patientName = patientRecord?.name ?? session.user.name ?? "the patient";
-
-  // Extract medical facts from the document and add to history
-  const extractedFacts = await extractMedicalFacts(blob.url, patientName);
-  
-  if (extractedFacts.length > 0) {
-    const historyResult = await addFactsToHistory({
-      facts: extractedFacts,
-      userId: session.user.id,
-      documentId: insertedDocument?.id,
+  try {
+    const blob = await put(file.name, file, {
+      access: "public",
+      addRandomSuffix: true,
     });
-    console.log("[upload] Added facts to history:", historyResult);
-  }
+    blobUrl = blob.url;
 
-  return NextResponse.json({
-    url: blob.url,
-    filename: file.name,
-  });
+    const validation = await validateMedicalDocument(blob.url);
+
+    if (!validation.isValid) {
+      await deleteBlobIfExists(blobUrl);
+      return NextResponse.json(
+        { error: "Only medical documents are allowed" },
+        { status: 400 }
+      );
+    }
+
+    const [insertedDocument] = await db
+      .insert(documents)
+      .values({
+        userId: session.user.id,
+        url: blob.url,
+        filename: file.name,
+      })
+      .returning({ id: documents.id });
+    documentCreated = true;
+
+    const patientRecord = await db.query.user.findFirst({
+      where: eq(user.id, session.user.id),
+      columns: { name: true },
+    });
+
+    const patientName = patientRecord?.name ?? session.user.name ?? "the patient";
+
+    const extractedFacts = await extractMedicalFacts(blob.url, patientName);
+
+    if (extractedFacts.length > 0) {
+      try {
+        const historyResult = await addFactsToHistory({
+          facts: extractedFacts,
+          userId: session.user.id,
+          documentId: insertedDocument?.id,
+        });
+        console.log("[upload] Added facts to history:", historyResult);
+      } catch (error) {
+        console.error("[upload] Failed to add facts to history:", error);
+      }
+    }
+
+    return NextResponse.json({
+      url: blob.url,
+      filename: file.name,
+    });
+  } catch (error) {
+    console.error("[upload] Failed to process upload:", error);
+    if (blobUrl && !documentCreated) {
+      await deleteBlobIfExists(blobUrl);
+    }
+    return NextResponse.json(
+      { error: "Failed to process upload" },
+      { status: 500 }
+    );
+  }
 }

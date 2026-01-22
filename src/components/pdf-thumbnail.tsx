@@ -5,7 +5,6 @@ import { FileTextIcon } from "lucide-react";
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { PDFPageProxy } from "pdfjs-dist";
 
-// PDF.js is loaded dynamically to avoid SSR issues (uses browser-only APIs like DOMMatrix)
 async function getPdfjs() {
     const pdfjsLib = await import("pdfjs-dist");
     pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -34,13 +33,11 @@ export function PdfThumbnail({ url, className }: PdfThumbnailProps) {
         const context = canvas.getContext("2d");
         if (!context) return;
 
-        // Calculate scale to fit the container size
         const viewport = page.getViewport({ scale: 1 });
         const dpr = window.devicePixelRatio || 1;
         const scale = Math.min(width / viewport.width, height / viewport.height) * dpr;
         const scaledViewport = page.getViewport({ scale });
 
-        // Set canvas buffer size (actual pixels)
         canvas.width = scaledViewport.width;
         canvas.height = scaledViewport.height;
 
@@ -53,7 +50,6 @@ export function PdfThumbnail({ url, className }: PdfThumbnailProps) {
         setIsLoading(false);
     }, []);
 
-    // Load PDF and get the first page
     useEffect(() => {
         let cancelled = false;
 
@@ -75,7 +71,6 @@ export function PdfThumbnail({ url, className }: PdfThumbnailProps) {
 
                 pageRef.current = page;
 
-                // Render with initial container size
                 const container = containerRef.current;
                 if (container) {
                     const { width, height } = container.getBoundingClientRect();
@@ -100,7 +95,6 @@ export function PdfThumbnail({ url, className }: PdfThumbnailProps) {
         };
     }, [url, renderPage]);
 
-    // Re-render when container size changes
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;

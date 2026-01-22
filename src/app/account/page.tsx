@@ -49,13 +49,11 @@ export default function AccountPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (file.type !== "application/pdf") {
       setUploadError("Only PDF files are allowed");
       return;
     }
 
-    // Validate file size (10MB)
     if (file.size > 10 * 1024 * 1024) {
       setUploadError("File size must be less than 10MB");
       return;
@@ -78,13 +76,11 @@ export default function AccountPage() {
         throw new Error(data.error || "Upload failed");
       }
 
-      // Refresh the documents list
       utils.document.list.invalidate();
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Upload failed");
     } finally {
       setIsUploading(false);
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -207,7 +203,10 @@ export default function AccountPage() {
                     <div
                       key={doc.id}
                       className="group relative aspect-[3/4] rounded-xl border border-border overflow-hidden bg-background shadow-sm cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
-                      onClick={() => window.open(doc.url, "_blank")}
+                              onClick={() => {
+                                if (!doc.url) return;
+                                window.open(doc.url, "_blank", "noopener,noreferrer");
+                              }}
                     >
                       <PdfThumbnail
                         url={doc.url}

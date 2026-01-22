@@ -13,7 +13,6 @@ export const authClient = createAuthClient({
   ],
 });
 
-// Extended user type including our custom fields
 export type ExtendedUser = {
   id: string;
   createdAt: Date;

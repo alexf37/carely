@@ -26,7 +26,6 @@ export const documentRouter = createTRPCRouter({
   delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      // Find the document first to verify ownership
       const document = await ctx.db.query.documents.findFirst({
         where: eq(documents.id, input.id),
       });
@@ -35,10 +34,8 @@ export const documentRouter = createTRPCRouter({
         throw new Error("Document not found or access denied");
       }
 
-      // Delete from Vercel Blob
       await del(document.url);
 
-      // Delete from database
       await ctx.db.delete(documents).where(eq(documents.id, input.id));
 
       return { success: true };

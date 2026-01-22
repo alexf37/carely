@@ -21,12 +21,10 @@ export function LocationRequest({
     const [internalStatus, setInternalStatus] = useState<"idle" | "requesting" | "granted" | "denied">(status);
     const [errorMessage, setErrorMessage] = useState<string>("");
     
-    // Use refs to avoid re-creating requestLocation when callbacks change
     const onLocationGrantedRef = useRef(onLocationGranted);
     const onLocationDeniedRef = useRef(onLocationDenied);
     const hasRequestedRef = useRef(false);
     
-    // Keep refs up to date
     useEffect(() => {
         onLocationGrantedRef.current = onLocationGranted;
         onLocationDeniedRef.current = onLocationDenied;
@@ -46,7 +44,6 @@ export function LocationRequest({
             async (position) => {
                 const { latitude, longitude } = position.coords;
 
-                // Try to get city name via reverse geocoding
                 let city: string | undefined;
                 try {
                     const response = await fetch(
@@ -86,9 +83,8 @@ export function LocationRequest({
                 maximumAge: 300000,
             }
         );
-    }, []); // No dependencies - uses refs instead
+    }, []);
 
-    // Auto-request location on mount (only once)
     useEffect(() => {
         if (status === "idle" && !hasRequestedRef.current) {
             hasRequestedRef.current = true;

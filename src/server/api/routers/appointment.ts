@@ -8,7 +8,6 @@ import {
 } from "@/server/api/trpc";
 import { chats, visits, user, history } from "@/server/db/schema";
 
-// Zod schemas for intake form data
 const medicationSchema = z.object({
   name: z.string(),
   dosage: z.string(),
@@ -41,7 +40,6 @@ const intakeFormSchema = z.object({
   lifestyleAnswers: lifestyleAnswersSchema,
 });
 
-// Label mappings for displaying readable values
 const SEX_LABELS: Record<string, string> = {
   female: "Female",
   male: "Male",
@@ -85,38 +83,31 @@ const LIFESTYLE_PHRASES: Record<string, { yes: string; no: string }> = {
   },
 };
 
-// Helper to transform intake data into history content strings
 function buildHistoryRecords(data: z.infer<typeof intakeFormSchema>): string[] {
   const records: string[] = [];
 
-  // Date of birth
   if (data.dateOfBirth.trim()) {
     records.push(`Patient's date of birth is ${data.dateOfBirth}.`);
   }
 
-  // Sex assigned at birth
   if (data.sexAssignedAtBirth.trim()) {
     const label = SEX_LABELS[data.sexAssignedAtBirth] ?? data.sexAssignedAtBirth;
     records.push(`Sex assigned at birth: ${label}.`);
   }
 
-  // Gender identity
   if (data.gender.trim()) {
     const label = GENDER_LABELS[data.gender] ?? data.gender;
     records.push(`Gender identity: ${label}.`);
   }
 
-  // Allergies
   if (data.allergies.trim()) {
     records.push(`Known allergies include: ${data.allergies}.`);
   }
 
-  // Chronic conditions
   if (data.chronicIllnesses.length > 0) {
     records.push(`Chronic conditions: ${data.chronicIllnesses.join(", ")}.`);
   }
 
-  // Medical history events
   const filledEvents = data.medicalHistory.filter(
     (e) => e.description.trim() || e.year.trim()
   );
@@ -135,7 +126,6 @@ function buildHistoryRecords(data: z.infer<typeof intakeFormSchema>): string[] {
     records.push(`Past medical history includes: ${eventDescriptions.join("; ")}.`);
   }
 
-  // Current medications
   const filledMeds = data.currentMedications.filter((m) => m.name.trim());
   if (filledMeds.length > 0) {
     const medDescriptions = filledMeds.map((med) => {
@@ -151,7 +141,6 @@ function buildHistoryRecords(data: z.infer<typeof intakeFormSchema>): string[] {
     records.push(`Current medications: ${medDescriptions.join("; ")}.`);
   }
 
-  // Lifestyle answers - only include answered questions
   const answeredLifestyle = Object.entries(data.lifestyleAnswers).filter(
     ([, answer]) => answer !== null
   ) as [keyof typeof LIFESTYLE_PHRASES, "yes" | "no"][];
@@ -221,7 +210,6 @@ export const appointmentRouter = createTRPCRouter({
     const chatId = crypto.randomUUID();
     const visitId = crypto.randomUUID();
 
-    // Create the chat first
     await ctx.db.insert(chats).values({
       id: chatId,
       userId: ctx.session.user.id,
@@ -229,7 +217,6 @@ export const appointmentRouter = createTRPCRouter({
       content: { messages: [] },
     });
 
-    // Get the created chat to retrieve the auto-generated publicId
     const chat = await ctx.db.query.chats.findFirst({
       where: eq(chats.id, chatId),
     });
@@ -241,7 +228,6 @@ export const appointmentRouter = createTRPCRouter({
       });
     }
 
-    // Create the visit linked to the chat
     await ctx.db.insert(visits).values({
       id: visitId,
       userId: ctx.session.user.id,
@@ -266,7 +252,6 @@ export const appointmentRouter = createTRPCRouter({
         });
       }
 
-      // Ensure the user owns this chat
       if (chat.userId !== ctx.session.user.id) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -295,10 +280,8 @@ export const appointmentRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
 
-      // Build natural language history records from intake data
       const contentStrings = buildHistoryRecords(input);
 
-      // Insert history records (only for non-empty steps)
       if (contentStrings.length > 0) {
         const historyRecords = contentStrings.map((content) => ({
           id: crypto.randomUUID(),
@@ -310,7 +293,6 @@ export const appointmentRouter = createTRPCRouter({
         await ctx.db.insert(history).values(historyRecords);
       }
 
-      // Mark intake as complete
       await ctx.db
         .update(user)
         .set({ hasCompletedIntake: true })
@@ -322,7 +304,6 @@ export const appointmentRouter = createTRPCRouter({
   delete: protectedProcedure
     .input(z.object({ publicId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      // Find the chat by publicId
       const chat = await ctx.db.query.chats.findFirst({
         where: eq(chats.publicId, input.publicId),
       });
@@ -334,7 +315,6 @@ export const appointmentRouter = createTRPCRouter({
         });
       }
 
-      // Ensure the user owns this chat
       if (chat.userId !== ctx.session.user.id) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -342,10 +322,8 @@ export const appointmentRouter = createTRPCRouter({
         });
       }
 
-      // Delete the visit first (it references the chat)
       await ctx.db.delete(visits).where(eq(visits.chatId, chat.id));
 
-      // Then delete the chat
       await ctx.db.delete(chats).where(eq(chats.id, chat.id));
 
       return { success: true };

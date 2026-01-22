@@ -70,10 +70,6 @@ import {
   useState,
 } from "react";
 
-// ============================================================================
-// Provider Context & Types
-// ============================================================================
-
 export type AttachmentsContext = {
   files: (FileUIPart & { id: string })[];
   add: (files: File[] | FileList) => void;
@@ -116,7 +112,6 @@ export const usePromptInputController = () => {
   return ctx;
 };
 
-// Optional variants (do NOT throw). Useful for dual-mode components.
 const useOptionalPromptInputController = () =>
   useContext(PromptInputController);
 
@@ -196,11 +191,9 @@ export function PromptInputProvider({
     });
   }, []);
 
-  // Keep a ref to attachments for cleanup on unmount (avoids stale closure)
   const attachmentsRef = useRef(attachmentFiles);
   attachmentsRef.current = attachmentFiles;
 
-  // Cleanup blob URLs on unmount to prevent memory leaks
   useEffect(() => {
     return () => {
       for (const f of attachmentsRef.current) {
@@ -256,10 +249,6 @@ export function PromptInputProvider({
     </PromptInputController.Provider>
   );
 }
-
-// ============================================================================
-// Component Context & Hooks
-// ============================================================================
 
 const LocalAttachmentsContext = createContext<AttachmentsContext | null>(null);
 

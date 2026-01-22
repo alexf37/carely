@@ -41,7 +41,6 @@ Only output the brief description or "SKIP", nothing else.`,
   }
 }
 
-// Get the base system prompt from the shared module
 const BASE_SYSTEM_PROMPT = getSystemPrompt({
   includeDeveloperBackdoor: process.env.NODE_ENV === "development",
 });
@@ -60,13 +59,11 @@ export async function POST(req: Request) {
     return new Response("Chat public ID is required", { status: 400 });
   }
 
-  // Ensure all incoming messages have timestamp metadata
   const messagesWithMetadata: ChatUIMessage[] = messages.map((msg) => ({
     ...msg,
     metadata: msg.metadata ?? createMessageMetadata(),
   }));
 
-  // If chatPublicId is provided, verify ownership
   const chatRecord = await db.query.chats.findFirst({
     where: eq(chats.publicId, chatPublicId),
   });
@@ -80,15 +77,12 @@ export async function POST(req: Request) {
       return new Response("Forbidden", { status: 403 });
     }
 
-  // Fetch user's medical history
   const userHistory = await db.query.history.findMany({
     where: eq(history.userId, session.user.id),
   });
 
-  // Build system prompt with history and user info appended
   let systemPrompt = BASE_SYSTEM_PROMPT;
   
-  // Add user info for tools that need patient context
   const userInfoSection = `
 ---
 **Patient Information (for tools):**
@@ -109,7 +103,6 @@ ${userHistory.map((h) => `${h.content}`).join("\n")}
     systemPrompt = systemPrompt + historySection;
   }
 
-  // Capture the timestamp when the assistant message starts
   let assistantMessageMetadata: ReturnType<typeof createMessageMetadata> | null = null;
 
   const result = streamText({
@@ -124,9 +117,6 @@ ${userHistory.map((h) => `${h.content}`).join("\n")}
         }
     },
     async onFinish({ response }) {
-      // Persist messages if we have a chatPublicId
-        // The messages array already contains the user's message
-        // We need to add the assistant's response to it
         const assistantContent = response.messages[0]?.content;
         const textContent = typeof assistantContent === "string"
           ? assistantContent
@@ -146,10 +136,8 @@ ${userHistory.map((h) => `${h.content}`).join("\n")}
 
         const updatedMessages = [...messagesWithMetadata, assistantMessage];
 
-        // Check if we should generate a description for this appointment
         let descriptionUpdate: { description: string } | Record<string, never> = {};
         if (!chatRecord.description) {
-          // Find the first user message with actual content
           const firstUserMessage = messagesWithMetadata.find(
             (msg) => msg.role === "user" && msg.parts?.some((part) => part.type === "text" && part.text?.trim())
           );
@@ -179,12 +167,10 @@ ${userHistory.map((h) => `${h.content}`).join("\n")}
 
   return result.toUIMessageStreamResponse({
     messageMetadata: ({ part }) => {
-      // Set timestamp when the assistant message starts streaming
       if (part.type === "start") {
         assistantMessageMetadata = createMessageMetadata();
         return assistantMessageMetadata;
       }
-      // Return the same metadata on finish to ensure consistency
       return assistantMessageMetadata ?? createMessageMetadata();
     },
   });
