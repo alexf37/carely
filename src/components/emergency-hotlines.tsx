@@ -18,6 +18,19 @@ type Hotline = {
   number: string;
 };
 
+const STRIPE_COLORS: Record<EmergencyType, string> = {
+  general: "bg-red-500",           // Emergency red
+  poison: "bg-green-500",          // Green cross / pharmacy association
+  suicide: "bg-yellow-500",        // Yellow ribbon for suicide prevention
+  domesticViolence: "bg-purple-500", // Purple ribbon for DV awareness
+  sexualAssault: "bg-teal-500",    // Teal ribbon for sexual assault awareness
+  childAbuse: "bg-blue-500",       // Blue ribbon for child abuse prevention
+  substanceAbuse: "bg-fuchsia-500", // Recovery awareness
+  veterans: "bg-emerald-700",      // Military green
+  lgbtqYouth: "bg-orange-500",     // Trevor Project branding
+  eatingDisorders: "bg-violet-400", // Periwinkle for eating disorder awareness
+};
+
 const HOTLINES: Record<EmergencyType, Hotline> = {
   general: {
     type: "general",
@@ -86,7 +99,7 @@ export function EmergencyHotlines({ types }: EmergencyHotlinesProps) {
           href={`tel:${hotline.number.replace(/[^0-9+]/g, "")}`}
           className="inline-flex items-center gap-3 rounded-lg border bg-card pl-0 pr-6 py-0 overflow-hidden transition-all hover:shadow-md active:scale-[0.98]"
         >
-          <div className="bg-red-500 w-1.5 self-stretch" />
+          <div className={`${STRIPE_COLORS[hotline.type]} w-1.5 self-stretch`} />
           <div className="py-2.5 pl-1">
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{hotline.name}</div>
             <div className="text-lg font-bold tabular-nums">{hotline.number}</div>

@@ -16,7 +16,8 @@
     "preview": "next build && next start",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test:conversations": "bun run scripts/test-conversations.ts"
+    "test:conversations": "bun run scripts/test-conversations.ts",
+    "generate:transcripts": "bun run scripts/generate-transcripts.ts"
   },
   "dependencies": {
     "@ai-sdk/groq": "^3.0.11",
