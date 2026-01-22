@@ -867,6 +867,27 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
                                 isLastMessage &&
                                 !text &&
                                 (status === "streaming" || status === "submitted");
+
+                            // Check if addToHistory tool is currently being called (not yet completed)
+                            const isAddingToHistory = message.parts.some((part) => {
+                                const toolPart = part as ToolMessagePart;
+                                const isAddToHistoryTool =
+                                    toolPart.type === "tool-addToHistory" ||
+                                    toolPart.toolName === "addToHistory";
+                                // Show "Adding to history..." while tool is in progress (not yet output-available)
+                                const isInProgress = toolPart.state !== "output-available";
+                                return isAddToHistoryTool && isInProgress;
+                            });
+                            // Check if findNearbyHealthcare tool is currently being called (not yet completed)
+                            const isSearchingClinics = message.parts.some((part) => {
+                                const toolPart = part as ToolMessagePart;
+                                const isFindHealthcareTool =
+                                    toolPart.type === "tool-findNearbyHealthcare" ||
+                                    toolPart.toolName === "findNearbyHealthcare";
+                                // Show "Searching for clinics..." while tool is in progress (not yet output-available)
+                                const isInProgress = toolPart.state !== "output-available";
+                                return isFindHealthcareTool && isInProgress;
+                            });
                             const isAssistantStreaming =
                                 message.role === "assistant" &&
                                 isLastMessage &&
@@ -907,7 +928,9 @@ export function Chat({ chatPublicId, initialMessages = [] }: ChatProps) {
                                         </MessageAttachments>
                                     )}
                                     {isAssistantThinking ? (
-                                        <MessageThinking />
+                                        <MessageThinking
+                                            text={isAddingToHistory ? "Adding to history..." : isSearchingClinics ? "Searching for clinics..." : "Thinking..."}
+                                        />
                                     ) : text ? (
                                         <MessageContent>
                                             {message.role === "assistant" ? (

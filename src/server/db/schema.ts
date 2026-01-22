@@ -29,8 +29,14 @@ export const chats = createTable("chat", (d) => ({
 export const history = createTable("history", (d) => ({
   id: d.uuid().primaryKey(),
   userId: d.varchar({ length: 255 }).notNull().references(() => user.id),
+  documentId: d.uuid().references(() => documents.id, { onDelete: "cascade" }),
   createdAt: d.timestamp().$defaultFn(() => new Date()).notNull(),
   content: d.text().notNull(),
+}));
+
+export const historyRelations = relations(history, ({ one }) => ({
+  user: one(user, { fields: [history.userId], references: [user.id] }),
+  document: one(documents, { fields: [history.documentId], references: [documents.id] }),
 }));
 
 export const posts = createTable(

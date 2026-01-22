@@ -755,6 +755,9 @@ export default function IntakePage() {
         lifestyleAnswers: formData.lifestyleAnswers,
       });
 
+      // Refetch the session to update hasCompletedIntake on the client
+      await session.refetch();
+
       // Create a new appointment
       const { publicId } = await createAppointment.mutateAsync();
 
@@ -895,12 +898,17 @@ export default function IntakePage() {
                             }
                           />
                         ) : currentStepData.id === "lifestyle" ? (
-                          <LifestyleQuestionsTable
-                            answers={formData.lifestyleAnswers}
-                            onChange={(lifestyleAnswers) =>
-                              setFormData((prev) => ({ ...prev, lifestyleAnswers }))
-                            }
-                          />
+                          <div className="space-y-4">
+                            <LifestyleQuestionsTable
+                              answers={formData.lifestyleAnswers}
+                              onChange={(lifestyleAnswers) =>
+                                setFormData((prev) => ({ ...prev, lifestyleAnswers }))
+                              }
+                            />
+                            <p className="text-xs text-muted-foreground/70 text-center text-pretty">
+                              Carely remembers other information from your conversations and medical documents. If you ever want something added to your chart, just ask.
+                            </p>
+                          </div>
                         ) : (
                           <>
                             <Label htmlFor={currentStepData.id} className="sr-only">
@@ -940,7 +948,7 @@ export default function IntakePage() {
                     onClick={handleSubmit}
                     disabled={isSubmitting || isAnimating}
                   >
-                    Skip for now
+                    Skip intake
                   </Button>
                   <div className="flex gap-4">
                     <Button

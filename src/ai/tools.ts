@@ -2,8 +2,11 @@ import { tool as createTool, generateText, Output } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import Exa from "exa-js";
+import { eq, inArray } from "drizzle-orm";
 import { sendFollowUpEmail } from "@/email";
 import { followUpEmailWorkflow } from "@/app/workflows/follow-up-email-workflow";
+import { db } from "@/server/db";
+import { history } from "@/server/db/schema";
 
 export const emergencyHotlinesTool = createTool({
   description:
@@ -232,6 +235,175 @@ export const findNearbyHealthcareTool = createTool({
   },
 });
 
+// Schema for the LLM response when analyzing history facts
+const historyAnalysisSchema = z.object({
+  contradictedPrimaryKeys: z
+    .array(z.string())
+    .describe(
+      "Primary keys (UUIDs) of existing history facts that are now contradicted or superseded by new facts. Only include facts where new information directly contradicts old information."
+    ),
+  redundantNewFactIndices: z
+    .array(z.number())
+    .describe(
+      "Indices (0-based) of new facts that are completely redundant with existing history and should NOT be added. Only mark as redundant if the new fact adds NO new information. If a new fact contains some redundant info alongside new info, do NOT include it here - it should still be added."
+    ),
+});
+
+export type AddFactsToHistoryResult = {
+  success: boolean;
+  factsAdded: number;
+  factsSkippedAsRedundant: number;
+  oldFactsRemoved: number;
+  message: string;
+  error?: string;
+};
+
+export type AddFactsToHistoryOptions = {
+  facts: string[];
+  userId: string;
+  /** Optional document ID to link facts to their source document */
+  documentId?: string;
+};
+
+/**
+ * Add facts to a patient's permanent medical history.
+ * This function handles deduplication and contradiction detection.
+ */
+export async function addFactsToHistory(
+  options: AddFactsToHistoryOptions
+): Promise<AddFactsToHistoryResult> {
+  const { facts, userId, documentId } = options;
+  try {
+    // Step 1: Fetch all current history for this patient
+    const existingHistory = await db.query.history.findMany({
+      where: eq(history.userId, userId),
+    });
+
+    console.log("[addFactsToHistory] Existing history entries:", existingHistory.length);
+    console.log("[addFactsToHistory] New facts to evaluate:", facts.length);
+
+    // Step 2: Build the prompt for the LLM to analyze contradictions and redundancy
+    const existingHistoryText =
+      existingHistory.length > 0
+        ? existingHistory
+            .map((h) => `[PK: ${h.id}] ${h.content}`)
+            .join("\n")
+        : "No existing history entries.";
+
+    const newFactsText = facts
+      .map((fact, index) => `[Index: ${index}] ${fact}`)
+      .join("\n");
+
+    const analysisPrompt = `You are analyzing a patient's medical history to identify contradictions and redundancy.
+
+EXISTING HISTORY (with primary keys):
+${existingHistoryText}
+
+NEW FACTS TO ADD (with indices):
+${newFactsText}
+
+Your task:
+1. Identify any EXISTING history entries that are now CONTRADICTED by new facts. For example:
+   - If existing says "Patient does not smoke" and new says "Patient smokes 1 pack per day", the old entry is contradicted.
+   - If existing says "Patient takes Lisinopril 10mg" and new says "Patient stopped taking Lisinopril", the old entry is contradicted.
+   - Only mark as contradicted if the new information directly conflicts with the old - not just if it provides more detail.
+
+2. Identify any NEW facts that are COMPLETELY REDUNDANT with existing history and add no new information. For example:
+   - If existing says "Patient is allergic to penicillin" and new says "Patient has penicillin allergy", the new fact is redundant.
+   - BUT if existing says "Patient is allergic to penicillin" and new says "Patient is allergic to penicillin and amoxicillin", the new fact is NOT redundant because it adds new information about amoxicillin.
+   - When in doubt, do NOT mark as redundant - it's better to have slightly duplicative information than to lose new details.
+
+Return your analysis.`;
+
+    // Step 3: Call LLM to analyze
+    const analysisResult = await generateText({
+      model: openai("gpt-5-mini"),
+      providerOptions: {
+        openai: {
+          reasoningEffort: "minimal",
+        },
+      },
+      output: Output.object({
+        schema: historyAnalysisSchema,
+      }),
+      prompt: analysisPrompt,
+    });
+
+    const analysis = analysisResult.output;
+
+    if (!analysis) {
+      throw new Error("Failed to get analysis from LLM");
+    }
+
+    console.log("[addFactsToHistory] Analysis result:", analysis);
+
+    // Step 4: Delete contradicted old facts
+    if (analysis.contradictedPrimaryKeys.length > 0) {
+      await db
+        .delete(history)
+        .where(inArray(history.id, analysis.contradictedPrimaryKeys));
+      console.log(
+        "[addFactsToHistory] Deleted contradicted entries:",
+        analysis.contradictedPrimaryKeys.length
+      );
+    }
+
+    // Step 5: Add non-redundant new facts
+    const redundantIndices = new Set(analysis.redundantNewFactIndices);
+    const factsToAdd = facts.filter((_, index) => !redundantIndices.has(index));
+
+    if (factsToAdd.length > 0) {
+      const newHistoryRecords = factsToAdd.map((content) => ({
+        id: crypto.randomUUID(),
+        userId,
+        documentId,
+        createdAt: new Date(),
+        content,
+      }));
+
+      await db.insert(history).values(newHistoryRecords);
+      console.log("[addFactsToHistory] Added new entries:", factsToAdd.length);
+    }
+
+    return {
+      success: true,
+      factsAdded: factsToAdd.length,
+      factsSkippedAsRedundant: facts.length - factsToAdd.length,
+      oldFactsRemoved: analysis.contradictedPrimaryKeys.length,
+      message: `Successfully updated patient history: added ${factsToAdd.length} new fact(s), removed ${analysis.contradictedPrimaryKeys.length} outdated fact(s), skipped ${facts.length - factsToAdd.length} redundant fact(s).`,
+    };
+  } catch (error) {
+    console.error("[addFactsToHistory] Error:", error);
+    return {
+      success: false,
+      factsAdded: 0,
+      factsSkippedAsRedundant: 0,
+      oldFactsRemoved: 0,
+      message: "Failed to update patient history",
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+export const addToHistoryTool = createTool({
+  description:
+    "Add facts to the patient's permanent medical history. Use this tool when the patient reveals information that should be recorded for future reference across appointments. This includes: chronic conditions, past surgeries/hospitalizations, allergies, lifestyle factors (smoking history, alcohol use, drug use), family medical history, long-term medications, and other persistent health information. Do NOT use this for temporary symptoms like 'sore throat', 'headache', or 'fever' that are only relevant to the current appointment. The facts you add should be written as clear, concise statements.",
+  inputSchema: z.object({
+    facts: z
+      .array(z.string())
+      .min(1)
+      .describe(
+        "Array of facts to add to the patient's medical history. Each fact should be a concise, standalone statement about permanent medical history (e.g., 'Patient has a history of smoking for 10 years', 'Patient is allergic to penicillin', 'Patient had appendectomy in 2015')."
+      ),
+    userId: z
+      .string()
+      .describe("The patient's user ID (from the patient information in the system context)"),
+  }),
+  execute: async function ({ facts, userId }) {
+    return addFactsToHistory({ facts, userId });
+  },
+});
+
 export const tools = {
   displayEmergencyHotlines: emergencyHotlinesTool,
   scheduleFollowUp: scheduleFollowUpTool,
@@ -239,4 +411,5 @@ export const tools = {
   scheduleFollowUpEmail: scheduleFollowUpEmailTool,
   getUserLocation: getUserLocationTool,
   findNearbyHealthcare: findNearbyHealthcareTool,
+  addToHistory: addToHistoryTool,
 };

@@ -15,6 +15,13 @@
       "when": 1769037669624,
       "tag": "0001_square_scalphunter",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1769048121046,
+      "tag": "0002_stale_darkhawk",
+      "breakpoints": true
     }
   ]
 }

@@ -115,6 +115,20 @@ You must abide by the following instructions. Being a healthcare assistant, acti
 - Only use these tools at appropriate moments - typically after giving advice that includes a follow-up timeframe.
 - In the text that you include with the follow-up suggestion tool call, if there is anything that the patient should do between now and the follow-up, like a routine to follow or changes to make or anything like that, say it. 
 
+**Recording Patient History:**
+- During conversations, patients may reveal important medical history that should be recorded for future appointments. Use the addToHistory tool to record these facts.
+- ONLY record facts that are worthy of permanent medical history. These include:
+  - Chronic conditions (e.g., "Patient has diabetes", "Patient has hypertension")
+  - Past medical events (e.g., "Patient had appendectomy in 2015", "Patient was hospitalized for pneumonia in 2020")
+  - Allergies (e.g., "Patient is allergic to sulfa drugs")
+  - Lifestyle factors (e.g., "Patient quit smoking 5 years ago", "Patient drinks alcohol socially")
+  - Family history (e.g., "Patient's father had heart disease")
+  - Long-term medications (e.g., "Patient takes metformin 500mg twice daily")
+- Do NOT record temporary symptoms or conditions only relevant to the current visit (e.g., "Patient has a sore throat", "Patient has a headache today", "Patient's fever started yesterday")
+- When you identify history-worthy information, call the addToHistory tool with the facts. Write each fact as a clear, concise statement.
+- You can add multiple facts at once by passing an array of facts to the tool.
+- The tool will automatically handle removing outdated information if new facts contradict old records.
+
 **Finding Nearby Healthcare:**
 - When the patient should see a doctor, specialist, or visit a clinic/hospital/pharmacy, you can help them find nearby options using the getUserLocation and findNearbyHealthcare tools.
 - This is a two-step process that should happen back-to-back:
@@ -182,12 +196,13 @@ export async function POST(req: Request) {
   // Build system prompt with history and user info appended
   let systemPrompt = SYSTEM_PROMPT;
   
-  // Add user info for email tools
+  // Add user info for tools that need patient context
   const userInfoSection = `
 ---
-**Patient Information (for email tools):**
+**Patient Information (for tools):**
 - Name: ${session.user.name}
 - Email: ${session.user.email}
+- User ID: ${session.user.id}
 - Appointment ID: ${chatRecord.publicId}
 `;
   systemPrompt = systemPrompt + userInfoSection;
@@ -210,7 +225,7 @@ ${userHistory.map((h) => `${h.content}`).join("\n")}
     model: openai("gpt-5.2"),
     messages: await convertToModelMessages(messagesWithMetadata),
     tools,
-    stopWhen: stepCountIs(4),
+    stopWhen: stepCountIs(5),
     providerOptions: {
         openai: {
             reasoningEffort: "medium"

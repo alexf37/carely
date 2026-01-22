@@ -1,0 +1,2 @@
+ALTER TABLE "carely_history" ADD COLUMN "documentId" uuid;--> statement-breakpoint
+ALTER TABLE "carely_history" ADD CONSTRAINT "carely_history_documentId_carely_document_id_fk" FOREIGN KEY ("documentId") REFERENCES "public"."carely_document"("id") ON DELETE cascade ON UPDATE no action;

@@ -60,9 +60,11 @@ export const MessageContent = ({
   </div>
 );
 
-export type MessageThinkingProps = HTMLAttributes<HTMLDivElement>;
+export type MessageThinkingProps = HTMLAttributes<HTMLDivElement> & {
+  text?: string;
+};
 
-export function MessageThinking({ className, ...props }: MessageThinkingProps) {
+export function MessageThinking({ className, text = "Thinking...", ...props }: MessageThinkingProps) {
   return (
     <div
       className={cn(
@@ -73,7 +75,7 @@ export function MessageThinking({ className, ...props }: MessageThinkingProps) {
     >
       <Loader size={14} />
       <Shimmer className="text-sm" duration={1.5}>
-        Thinking...
+        {text}
       </Shimmer>
     </div>
   );
