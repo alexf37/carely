@@ -192,6 +192,42 @@
   filter: blur(1px);
 }
 
+.chroma-text-hover {
+  background-image: linear-gradient(
+    105deg,
+    var(--color-primary),
+    var(--color-primary) 33.33%,
+    #c679c4 40%,
+    #fa3d1d 45%,
+    #ffb005 50%,
+    #e1e1fe 55%,
+    #0358f7 60%,
+    var(--color-primary) 66.67%,
+    var(--color-primary)
+  );
+  background-size: 300% 100%;
+  background-position: 0 0;
+  will-change: background-position;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-fill-color: transparent;
+  color: transparent;
+}
+
+.chroma-text-hover:hover {
+  animation: chroma-sweep-hover 0.6s ease-in-out forwards;
+}
+
+@keyframes chroma-sweep-hover {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
 @keyframes chroma-sweep {
   0% {
     background-position: 100% 0;

@@ -255,7 +255,7 @@ export default function AppointmentsPage() {
     <main className="flex flex-col min-h-screen w-full px-4 max-w-screen-md mx-auto">
       <div className="flex items-center py-4 justify-between w-full shrink-0">
         <Link href="/">
-          <h1 className="text-3xl font-light">Carely</h1>
+          <h1 className="text-3xl font-light chroma-text-hover">Carely</h1>
         </Link>
         <div className="flex items-center gap-2">
           <ModeToggle />

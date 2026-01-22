@@ -787,7 +787,7 @@ export default function IntakePage() {
     <main className="flex flex-col relative h-screen w-full px-4 max-w-screen-md mx-auto">
       <div className="flex items-center absolute w-full top-0 left-0 py-4 justify-between w-full shrink-0">
         <Link href="/">
-          <h1 className="text-3xl font-light">Carely</h1>
+          <h1 className="text-3xl font-light chroma-text-hover">Carely</h1>
         </Link>
         <ModeToggle />
       </div>

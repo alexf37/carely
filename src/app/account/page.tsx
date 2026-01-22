@@ -140,7 +140,7 @@ export default function AccountPage() {
       {/* Header */}
       <header className="absolute top-0 left-0 right-0 z-10 flex items-center py-4 px-4 md:px-8 justify-between w-full shrink-0 max-w-screen-md mx-auto">
         <Link href="/">
-          <h1 className="text-2xl font-light tracking-tight">Carely</h1>
+          <h1 className="text-2xl font-light tracking-tight chroma-text-hover">Carely</h1>
         </Link>
         <div className="flex items-center gap-2">
           <ModeToggle />

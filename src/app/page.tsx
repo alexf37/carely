@@ -28,7 +28,7 @@ export default async function Home() {
 
       {/* Header */}
       <header className="relative flex items-center py-4 px-4 md:px-8 justify-between w-full shrink-0 max-w-screen-xl mx-auto">
-        <h1 className="text-2xl font-light tracking-tight">Carely</h1>
+        <h1 className="text-2xl font-light tracking-tight chroma-text-hover">Carely</h1>
         <div className="flex items-center gap-2">
           <ModeToggle />
           {session && user?.name ? <UserMenu userName={user.name} /> : null}
